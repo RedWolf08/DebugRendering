@@ -4,6 +4,8 @@ A utility for visually debugging Angel Script logic in Portal 2 Community Editio
 
 It allows you to quickly draw any basic shapes in the world: lines, arrows, geometric shapes, text, paths, frustums, and etc.
 
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d0844428-a57b-410a-9dd0-413567d33c8c" />
+
 ## Possibilities
 
 ### Basic primitives
@@ -28,9 +30,9 @@ It allows you to quickly draw any basic shapes in the world: lines, arrows, geom
 - Support for `TextFloat`, `TextInt`, `TextVec`
 
 ### Additional Features
-- Support for solid (filled shapes) and wireframe modes
-- Convenient colors in `DebugRendererColors`
-- Extensible
+- Support for solid (filled shapes) and wireframe modes.
+- Convenient colors in `DebugRendererColors`.
+- Extensible.
 
 ### Technical Info
 - The utility calls functions from VScript because VScript supports native rendering.
