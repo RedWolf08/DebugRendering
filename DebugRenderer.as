@@ -118,18 +118,18 @@ class DebugRenderer
     // ==============================================
 
 
-    void Line(const Vector&in a, const Vector&in b,
-              int r, int g, int bv, float dur = 0.05f)
+    void Line(const Vector&in pa, const Vector&in pb,
+              int r, int g, int b, float dur = 0.05f)
     {
         _exec("DebugDrawLine(" +
-              _v(a) + "," + _v(b) + "," +
-              r + "," + g + "," + bv + ",false," + dur + ")");
+              _v(pa) + "," + _v(pb) + "," +
+              r + "," + g + "," + b + ",false," + dur + ")");
     }
 
-    void Line(const Vector&in a, const Vector&in b,
+    void Line(const Vector&in pa, const Vector&in pb,
               const Color&in color, float dur = 0.05f)
     {
-        Line(a, b, color[0], color[1], color[2], dur);
+        Line(pa, pb, color[0], color[1], color[2], dur);
     }
 
 
@@ -243,16 +243,16 @@ class DebugRenderer
 
     void ArcBetween(const Vector&in center, const Vector&in normal,
                 const Vector&in startDir, const Vector&in endDir,
-                float radius, int r, int g, int bv, int alpha = 0,
+                float radius, int r, int g, int b, int alpha = 0,
                 float dur = 0.05f, float segments = 24)
     {
-        Vector a = startDir.Normalized();
-        Vector b = endDir.Normalized();
+        Vector pa = startDir.Normalized();
+        Vector pb = endDir.Normalized();
         
-        float angle = acos(a.Dot(b)) * RAD2DEG;
+        float angle = acos(pa.Dot(pb)) * RAD2DEG;
         if (angle < 0.1f) angle = 0.1f;
         
-        Arc(center, normal, a, radius, angle, r, g, bv, alpha, dur, segments);
+        Arc(center, normal, pa, radius, angle, r, g, b, alpha, dur, segments);
     }
 
     void ArcBetween(const Vector&in center, const Vector&in normal,
@@ -346,11 +346,11 @@ class DebugRenderer
 
     void Box(const Vector&in origin,
              const Vector&in mins, const Vector&in maxs,
-             int r, int g, int bv, int alpha = 0, float dur = 0.05f)
+             int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         _exec("DebugDrawBox(" +
               _v(origin) + "," + _v(mins) + "," + _v(maxs) + "," +
-              r + "," + g + "," + bv + "," + alpha + "," + dur + ")");
+              r + "," + g + "," + b + "," + alpha + "," + dur + ")");
     }
 
     void Box(const Vector&in origin,
@@ -364,12 +364,12 @@ class DebugRenderer
     void BoxAngles(const Vector&in origin,
                const Vector&in mins, const Vector&in maxs,
                const QAngle&in angles,
-               int r, int g, int bv, int alpha = 0, float dur = 0.05f)
+               int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         _exec("DebugDrawBoxAngles(" +
             _v(origin) + "," + _v(mins) + "," + _v(maxs) + "," +
             _v(angles) + "," +                    
-            r + "," + g + "," + bv + "," + alpha + "," + dur + ")");
+            r + "," + g + "," + b + "," + alpha + "," + dur + ")");
     }
 
     void BoxAngles(const Vector&in origin,
@@ -604,11 +604,11 @@ class DebugRenderer
     // ------------------------------
 
     void Arrow(const Vector&in from, const Vector&in to,
-               int r, int g, int bv, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
+               int r, int g, int b, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
-        Line(from, to, r, g, bv, dur);
+        Line(from, to, r, g, b, dur);
         Vector dir = (to - from).Normalized();
-        _ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, bv, 0, dur, segments);
+        _ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, b, 0, dur, segments);
     }
 
     void Arrow(const Vector&in from, const Vector&in to,
@@ -618,13 +618,13 @@ class DebugRenderer
     }
 
     void DoubleArrow(const Vector&in from, const Vector&in to,
-                     int r, int g, int bv, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
+                     int r, int g, int b, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
-        Line(from, to, r, g, bv, dur);
+        Line(from, to, r, g, b, dur);
         
         Vector dir = (to - from).Normalized();
-        _ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, bv, 0, dur, segments);
-        _ArrowHeadCone(from, -dir, headSize, headSize * 0.6f, r, g, bv, 0, dur, segments);
+        _ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, b, 0, dur, segments);
+        _ArrowHeadCone(from, -dir, headSize, headSize * 0.6f, r, g, b, 0, dur, segments);
     }
 
     void DoubleArrow(const Vector&in from, const Vector&in to,
@@ -639,10 +639,10 @@ class DebugRenderer
     // ------------------------------
     
     void ArrowOld(const Vector&in from, const Vector&in to,
-               int r, int g, int bv, float dur = 0.05f)
+               int r, int g, int b, float dur = 0.05f)
     {
-        Line(from, to, r, g, bv, dur);
-        Cross(to, 3.0f, r, g, bv, dur);
+        Line(from, to, r, g, b, dur);
+        Cross(to, 3.0f, r, g, b, dur);
     }
 
     void ArrowOld(const Vector&in from, const Vector&in to,
@@ -652,11 +652,11 @@ class DebugRenderer
     }
     
     void DoubleArrowOld(const Vector&in from, const Vector&in to,
-                     int r, int g, int bv, float dur = 0.05f)
+                     int r, int g, int b, float dur = 0.05f)
     {
-        Line(from, to, r, g, bv, dur);
-        Cross(from, 3.5f, r, g, bv, dur);
-        Cross(to,   3.5f, r, g, bv, dur);
+        Line(from, to, r, g, b, dur);
+        Cross(from, 3.5f, r, g, b, dur);
+        Cross(to,   3.5f, r, g, b, dur);
     }
 
     void DoubleArrowOld(const Vector&in from, const Vector&in to,
