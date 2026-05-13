@@ -134,7 +134,7 @@ class DebugRenderer
 
 
     void Circle(const Vector&in origin, const Vector&in normal, float radius,
-          int r, int g, int b, float dur = 0.05f, int segments = 16)
+          int r, int g, int b, float dur = 0.05f, float segments = 16)
     {
         if (radius <= 0.001f || segments < 3) return;
 
@@ -145,7 +145,7 @@ class DebugRenderer
         Vector right = normal.Cross(arb).Normalized();
         Vector up    = normal.Cross(right).Normalized();
 
-        float step = 6.283185f / float(segments);
+        float step = 6.283185f / segments;
 
         _BatchBegin();
 
@@ -168,7 +168,7 @@ class DebugRenderer
     }
 
     void Circle(const Vector&in origin, const Vector&in normal, float radius,
-            const Color&in color, float alpha = 255, float dur = 0.05f, int segments = 16)
+            const Color&in color, int alpha = 255, float dur = 0.05f, float segments = 16)
     {
         Circle(origin, normal, radius, color[0], color[1], color[2], dur, segments);
     }
@@ -183,9 +183,9 @@ class DebugRenderer
             float radius,
             float angleDegrees,       
             int r, int g, int b, 
-            float alpha = 0,               
+            int alpha = 0,               
             float dur = 0.05f, 
-            int segments = 24)
+            float segments = 24)
     {
         if (radius <= 0.001f || angleDegrees <= 0.001f) return;
 
@@ -195,7 +195,7 @@ class DebugRenderer
         Vector right = n.Cross(dir).Normalized();
         Vector up    = dir;                    
 
-        float step = (angleDegrees * DEG2RAD) / float(segments);
+        float step = (angleDegrees * DEG2RAD) / segments;
         float currentAngle = 0.0f;
 
         Vector prev = center + up * radius;
@@ -232,9 +232,9 @@ class DebugRenderer
             float radius,
             float angleDegrees,
             const Color&in color, 
-            float alpha = 0, 
+            int alpha = 0, 
             float dur = 0.05f, 
-            int segments = 24)
+            float segments = 24)
     {
         Arc(center, normal, startDir, radius, angleDegrees, 
             color[0], color[1], color[2], alpha, dur, segments);
@@ -243,8 +243,8 @@ class DebugRenderer
 
     void ArcBetween(const Vector&in center, const Vector&in normal,
                 const Vector&in startDir, const Vector&in endDir,
-                float radius, int r, int g, int bv, float alpha = 0,
-                float dur = 0.05f, int segments = 24)
+                float radius, int r, int g, int bv, int alpha = 0,
+                float dur = 0.05f, float segments = 24)
     {
         Vector a = startDir.Normalized();
         Vector b = endDir.Normalized();
@@ -257,8 +257,8 @@ class DebugRenderer
 
     void ArcBetween(const Vector&in center, const Vector&in normal,
                 const Vector&in startDir, const Vector&in endDir,
-                float radius, const Color&in color, float alpha = 0,
-                float dur = 0.05f, int segments = 24)
+                float radius, const Color&in color, int alpha = 0,
+                float dur = 0.05f, float segments = 24)
     {
         ArcBetween(center, normal, startDir, endDir, radius, 
             color[0], color[1], color[2], alpha, dur, segments);
@@ -346,7 +346,7 @@ class DebugRenderer
 
     void Box(const Vector&in origin,
              const Vector&in mins, const Vector&in maxs,
-             int r, int g, int bv, float alpha = 0, float dur = 0.05f)
+             int r, int g, int bv, int alpha = 0, float dur = 0.05f)
     {
         _exec("DebugDrawBox(" +
               _v(origin) + "," + _v(mins) + "," + _v(maxs) + "," +
@@ -355,7 +355,7 @@ class DebugRenderer
 
     void Box(const Vector&in origin,
              const Vector&in mins, const Vector&in maxs,
-             const Color&in color, float alpha = 0, float dur = 0.05f)
+             const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         Box(origin, mins, maxs, color[0], color[1], color[2], alpha, dur);
     }
@@ -364,7 +364,7 @@ class DebugRenderer
     void BoxAngles(const Vector&in origin,
                const Vector&in mins, const Vector&in maxs,
                const QAngle&in angles,
-               int r, int g, int bv, float alpha = 0, float dur = 0.05f)
+               int r, int g, int bv, int alpha = 0, float dur = 0.05f)
     {
         _exec("DebugDrawBoxAngles(" +
             _v(origin) + "," + _v(mins) + "," + _v(maxs) + "," +
@@ -375,14 +375,14 @@ class DebugRenderer
     void BoxAngles(const Vector&in origin,
                 const Vector&in mins, const Vector&in maxs,
                 const QAngle&in angles,
-                const Color&in color, float alpha = 0, float dur = 0.05f)
+                const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         BoxAngles(origin, mins, maxs, angles, color[0], color[1], color[2], alpha, dur);
     }
 
 
     void OBox(const Vector&in center, const Vector&in size, const QAngle&in angles, 
-          int r, int g, int b, float alpha = 0, float dur = 0.05f)
+          int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         Vector mins = size * -0.5f;
         Vector maxs = size * 0.5f;
@@ -390,7 +390,7 @@ class DebugRenderer
     }
 
     void OBox(const Vector&in center, const Vector&in size, const QAngle&in angles, 
-          const Color&in color, float alpha = 0, float dur = 0.05f)
+          const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         OBox(center, size, angles, color[0], color[1], color[2], alpha, dur);
     }
@@ -507,7 +507,7 @@ class DebugRenderer
 
 
     void Disk(const Vector&in origin, const Vector&in normal, float radius,
-          int r, int g, int b, float alpha = 255, bool circle = false, float dur = 0.05f, int segments = 16)
+          int r, int g, int b, int alpha = 255, bool circle = false, float dur = 0.05f, float segments = 16)
     {
         if (radius <= 0.001f || segments < 3) return;
 
@@ -518,7 +518,7 @@ class DebugRenderer
         Vector right = normal.Cross(arb).Normalized();
         Vector up    = normal.Cross(right).Normalized();
 
-        float step = 6.283185f / float(segments);
+        float step = 6.283185f / segments;
 
         _BatchBegin();
 
@@ -556,7 +556,7 @@ class DebugRenderer
     }
 
     void Disk(const Vector&in origin, const Vector&in normal, float radius,
-            const Color&in color, float alpha = 255, bool circle = false, float dur = 0.05f, int segments = 16)
+            const Color&in color, int alpha = 255, bool circle = false, float dur = 0.05f, float segments = 16)
     {
         Disk(origin, normal, radius, color[0], color[1], color[2], alpha, circle, dur, segments);
     }
@@ -577,8 +577,8 @@ class DebugRenderer
 
     private void _ArrowHeadCone(const Vector&in tip, const Vector&in dir,
                             float headLength, float headWidth,
-                            int r, int g, int b, float alpha = 0, float dur = 0.05f,
-                            int segments = 12)
+                            int r, int g, int b, int alpha = 0, float dur = 0.05f,
+                            float segments = 12)
     {
         if (headLength <= 0.0f) return;
 
@@ -604,7 +604,7 @@ class DebugRenderer
     // ------------------------------
 
     void Arrow(const Vector&in from, const Vector&in to,
-               int r, int g, int bv, float dur = 0.05f, float headSize = 8.0f, int segments = 12)
+               int r, int g, int bv, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
         Line(from, to, r, g, bv, dur);
         Vector dir = (to - from).Normalized();
@@ -612,13 +612,13 @@ class DebugRenderer
     }
 
     void Arrow(const Vector&in from, const Vector&in to,
-               const Color&in color, float dur = 0.05f, float headSize = 8.0f, int segments = 12)
+               const Color&in color, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
         Arrow(from, to, color[0], color[1], color[2], dur, headSize, segments);
     }
 
     void DoubleArrow(const Vector&in from, const Vector&in to,
-                     int r, int g, int bv, float dur = 0.05f, float headSize = 8.0f, int segments = 12)
+                     int r, int g, int bv, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
         Line(from, to, r, g, bv, dur);
         
@@ -628,7 +628,7 @@ class DebugRenderer
     }
 
     void DoubleArrow(const Vector&in from, const Vector&in to,
-                     const Color&in color, float dur = 0.05f, float headSize = 8.0f, int segments = 12)
+                     const Color&in color, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
         DoubleArrow(from, to, color[0], color[1], color[2], dur, headSize, segments);
     }
@@ -675,7 +675,7 @@ class DebugRenderer
     
 
     void Cylinder(const Vector&in start, const Vector&in end, float radius,
-                  int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 16)
+                  int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Vector dir = end - start;
         float len = dir.Length();
@@ -690,7 +690,7 @@ class DebugRenderer
         Vector right = dir.Cross(arb).Normalized();
         Vector up    = dir.Cross(right);
         
-        float step = 6.283185f / float(segments);
+        float step = 6.283185f / segments;
         
         _BatchBegin();
         
@@ -731,7 +731,7 @@ class DebugRenderer
     }
 
     void Cylinder(const Vector&in start, const Vector&in end, float radius,
-                  const Color&in color, float alpha = 0, float dur = 0.05f, int segments = 16)
+                  const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Cylinder(start, end, radius, color[0], color[1], color[2], alpha, dur, segments);
     }
@@ -742,7 +742,7 @@ class DebugRenderer
     // ------------------------------
 
     void CappedCylinder(const Vector&in start, const Vector&in end, float radius,
-                    int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 16)
+                    int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
 
         Cylinder(start, end, radius, r, g, b, alpha, dur, segments);
@@ -763,7 +763,7 @@ class DebugRenderer
     }
 
     void CappedCylinder(const Vector&in start, const Vector&in end, float radius,
-                        const Color&in color, float alpha = 0, float dur = 0.05f, int segments = 16)
+                        const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         CappedCylinder(start, end, radius, color[0], color[1], color[2], alpha, dur, segments);
     }
@@ -778,15 +778,15 @@ class DebugRenderer
 
 
     void Sphere(const Vector&in center, float radius,
-                int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 24)
+                int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 24)
     {
         if (segments < 8)  segments = 8;
         if (segments > 64) segments = 64;
 
         _BatchBegin();
 
-        float latStep = 3.14159265359f / float(segments);
-        float lonStep = 6.28318530718f / float(segments);
+        float latStep = 3.14159265359f / segments;
+        float lonStep = 6.28318530718f / segments;
 
         for (int lat = 0; lat < segments; lat++)
         {
@@ -825,21 +825,21 @@ class DebugRenderer
         _BatchFlush();
     }
 
-    void Sphere(const Vector&in center, float radius, const Color&in color, float alpha = 0, float dur = 0.05f, int segments = 16)
+    void Sphere(const Vector&in center, float radius, const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Sphere(center, radius, color[0], color[1], color[2], alpha, dur, segments);
     }
 
 
     void Hemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                    int r, int g, int b, float alpha = 0,
-                    float dur = 0.05f, int segments = 16, int rings = 8)
+                    int r, int g, int b, int alpha = 0,
+                    float dur = 0.05f, float segments = 16, float rings = 8)
     {
         Vector forward, right;
         VectorVectors(upDir.Normalized(), right, forward);
 
-        float ringStep = 1.0f / float(rings);
-        float angleStep = 6.283185f / float(segments);
+        float ringStep = 1.0f / rings;
+        float angleStep = 6.283185f / segments;
 
         _BatchBegin();
 
@@ -887,8 +887,8 @@ class DebugRenderer
     }
 
     void Hemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                    const Color&in color, float alpha = 0,
-                    float dur = 0.05f, int segments = 16, int rings = 8)
+                    const Color&in color, int alpha = 0,
+                    float dur = 0.05f, float segments = 16, float rings = 8)
     {
         Hemisphere(center, upDir, radius, color[0], color[1], color[2], alpha, dur, segments, rings);
     }
@@ -899,8 +899,8 @@ class DebugRenderer
     // -------------------------------------
 
     void CappedHemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                        int r, int g, int b, float alpha = 0,
-                        float dur = 0.05f, int segments = 16, int rings = 8)
+                        int r, int g, int b, int alpha = 0,
+                        float dur = 0.05f, float segments = 16, float rings = 8)
     {
         Vector dir = upDir.Normalized();
 
@@ -919,8 +919,8 @@ class DebugRenderer
     }
 
     void CappedHemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                        const Color&in color, float alpha = 0,
-                        float dur = 0.05f, int segments = 16, int rings = 8)
+                        const Color&in color, int alpha = 0,
+                        float dur = 0.05f, float segments = 16, float rings = 8)
     {
         CappedHemisphere(center, upDir, radius, color[0], color[1], color[2], alpha, dur, segments, rings);
     }
@@ -940,7 +940,7 @@ class DebugRenderer
     // --------------------------------------------
     
     void Capsule(const Vector&in start, const Vector&in end, float radius,
-                 int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 16)
+                 int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Cylinder(start, end, radius, r, g, b, alpha, dur, segments);
 
@@ -949,7 +949,7 @@ class DebugRenderer
     }
 
     void Capsule(const Vector&in start, const Vector&in end, float radius,
-                 const Color&in color, float alpha = 0, float dur = 0.05f, int segments = 16)
+                 const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Capsule(start, end, radius, color[0], color[1], color[2], alpha, dur, segments);
     }
@@ -961,7 +961,7 @@ class DebugRenderer
 
     void Capsule(const Vector&in start, const Vector&in end,
                  float radiusStart, float radiusEnd,
-                 int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 16)
+                 int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Vector dir = end - start;
         float len = dir.Length();
@@ -974,7 +974,7 @@ class DebugRenderer
         Vector right = dir.Cross(arb).Normalized();
         Vector up    = dir.Cross(right);
 
-        float step = 6.283185f / float(segments);
+        float step = 6.283185f / segments;
 
         _BatchBegin();
 
@@ -1020,7 +1020,7 @@ class DebugRenderer
 
     void Capsule(const Vector&in start, const Vector&in end,
                  float radiusStart, float radiusEnd,
-                 const Color&in color, float alpha = 0, float dur = 0.05f, int segments = 16)
+                 const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Capsule(start, end, radiusStart, radiusEnd,
                 color[0], color[1], color[2], alpha, dur, segments);
@@ -1037,8 +1037,8 @@ class DebugRenderer
 
 
     void CapsuleHemi(const Vector&in start, const Vector&in end, float radius,
-                     int r, int g, int b, float alpha = 0, float dur = 0.05f, 
-                     int segments = 16, int rings = 6)
+                     int r, int g, int b, int alpha = 0, float dur = 0.05f, 
+                     float segments = 16, float rings = 6)
     {
         if ((end - start).LengthSqr() < 0.0001f)
         {
@@ -1057,8 +1057,8 @@ class DebugRenderer
     }
 
     void CapsuleHemi(const Vector&in start, const Vector&in end, float radius,
-                     const Color&in color, float alpha = 0, float dur = 0.05f, 
-                     int segments = 16, int rings = 6)
+                     const Color&in color, int alpha = 0, float dur = 0.05f, 
+                     float segments = 16, float rings = 6)
     {
         CapsuleHemi(start, end, radius, color[0], color[1], color[2], alpha, dur, segments, rings);
     }
@@ -1070,8 +1070,8 @@ class DebugRenderer
 
     void CapsuleHemi(const Vector&in start, const Vector&in end,
                      float radiusStart, float radiusEnd,
-                     int r, int g, int b, float alpha = 0, float dur = 0.05f, 
-                     int segments = 16, int rings = 6)
+                     int r, int g, int b, int alpha = 0, float dur = 0.05f, 
+                     float segments = 16, float rings = 6)
     {
         Vector dir = end - start;
         float len = dir.Length();
@@ -1090,8 +1090,8 @@ class DebugRenderer
 
     void CapsuleHemi(const Vector&in start, const Vector&in end,
                      float radiusStart, float radiusEnd,
-                     const Color&in color, float alpha = 0, float dur = 0.05f, 
-                     int segments = 16, int rings = 6)
+                     const Color&in color, int alpha = 0, float dur = 0.05f, 
+                     float segments = 16, float rings = 6)
     {
         CapsuleHemi(start, end, radiusStart, radiusEnd,
                     color[0], color[1], color[2], alpha, dur, segments, rings);
@@ -1111,7 +1111,7 @@ class DebugRenderer
                        const Vector&in nbl, const Vector&in nbr,
                        const Vector&in ftl, const Vector&in ftr,
                        const Vector&in fbl, const Vector&in fbr,
-                       int r, int g, int b, float alpha = 0, float dur = 0.05f)
+                       int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         _BatchBegin();
 
@@ -1174,7 +1174,7 @@ class DebugRenderer
                        const Vector&in nbl, const Vector&in nbr,
                        const Vector&in ftl, const Vector&in ftr,
                        const Vector&in fbl, const Vector&in fbr,
-                       const Color&in color, float alpha = 0, float dur = 0.05f)
+                       const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         SimpleFrustum(ntl, ntr, nbl, nbr, ftl, ftr, fbl, fbr,
                       color[0], color[1], color[2], alpha, dur);
@@ -1188,7 +1188,7 @@ class DebugRenderer
                  float nearDist,
                  float farDist,
                  const Vector&in farOffset,    
-                 int r, int g, int b, float alpha = 0,
+                 int r, int g, int b, int alpha = 0,
                  float dur = 0.05f)
     {
         Vector forward, right, up;
@@ -1226,7 +1226,7 @@ class DebugRenderer
                  float nearDist,
                  float farDist,
                  const Vector&in farOffset,
-                 const Color&in color, float alpha = 0,
+                 const Color&in color, int alpha = 0,
                  float dur = 0.05f)
     {
         Frustum(origin, angles, fov, aspectRatio, nearDist, farDist, farOffset,
@@ -1236,7 +1236,7 @@ class DebugRenderer
     void Frustum(const Vector&in origin, const QAngle&in angles,
                  float fov = 90.0f, float aspectRatio = 16.0f/9.0f,
                  float nearDist = 10.0f, float farDist = 1000.0f,
-                 int r = 100, int g = 180, int b = 255, float alpha = 0, float dur = 0.05f)
+                 int r = 100, int g = 180, int b = 255, int alpha = 0, float dur = 0.05f)
     {
         Frustum(origin, angles, fov, aspectRatio, nearDist, farDist, Vector(0,0,0), r, g, b, alpha, dur);
     }
@@ -1252,7 +1252,7 @@ class DebugRenderer
 
 
     void Cone(const Vector&in apex, const Vector&in dir, float length, float halfAngleDeg,
-              int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 16)
+              int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Vector right, up;
         Vector arb = Vector(0,0,1);
@@ -1261,7 +1261,7 @@ class DebugRenderer
         up = dir.Cross(right);
 
         float radius = tan(halfAngleDeg * DEG2RAD) * length;
-        float step = 6.283185f / float(segments);
+        float step = 6.283185f / segments;
 
         _BatchBegin();
 
@@ -1288,12 +1288,12 @@ class DebugRenderer
 
     void Cone(const Vector&in eyePos, const Vector&in fwd, const Vector&in right, const Vector&in up,
               float near, float far, float halfAngleDeg,
-              int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 16)
+              int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         // Frustum-style cone
         float rNear = tan(halfAngleDeg * DEG2RAD) * near;
         float rFar  = tan(halfAngleDeg * DEG2RAD) * far;
-        float step = 6.283185f / float(segments);
+        float step = 6.283185f / segments;
 
         _BatchBegin();
         Vector prevN, prevF;
@@ -1327,21 +1327,21 @@ class DebugRenderer
     }
 
     void Cone(const Vector&in apex, const Vector&in dir, float length, float halfAngleDeg,
-            const Color&in color, float alpha = 0, float dur = 0.05f, int segments = 16)
+            const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Cone(apex, dir, length, halfAngleDeg, color[0], color[1], color[2], alpha, dur, segments);
     }
 
     void Cone(const Vector&in eyePos, const Vector&in fwd, const Vector&in right, const Vector&in up,
               float near, float far, float halfAngleDeg,
-              const Color&in color, float alpha = 0, float dur = 0.05f, int segments = 16)
+              const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Cone(eyePos, fwd, right, up, near, far, halfAngleDeg, color[0],color[1],color[2], alpha, dur, segments);
     }
 
     void Cone(const Vector&in eyePos, const QAngle&in angles,
           float nearDist, float farDist, float halfAngleDeg,
-          int r, int g, int b, float alpha = 0, float dur = 0.05f, int segments = 16)
+          int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
     {
         Vector fwd, right, up;
         AngleVectors(angles, fwd, right, up);
@@ -1578,10 +1578,10 @@ class DebugRenderer
            float majorRadius,
            float minorRadius,
            int r, int g, int b, 
-           float alpha = 0,
+           int alpha = 0,
            float dur = 0.05f, 
-           int segments = 24,
-           int sides = 12)
+           float segments = 24,
+           float sides = 12)
     {
         if (majorRadius <= 0.0f || minorRadius <= 0.0f) return;
 
@@ -1593,8 +1593,8 @@ class DebugRenderer
         Vector right = n.Cross(arb).Normalized();
         Vector forward = n.Cross(right);
 
-        float majorStep = 6.283185f / float(segments);
-        float minorStep = 6.283185f / float(sides);
+        float majorStep = 6.283185f / segments;
+        float minorStep = 6.283185f / sides;
 
         _BatchBegin();
 
@@ -1640,8 +1640,8 @@ class DebugRenderer
 
     void Torus(const Vector&in center, const Vector&in normal,
             float majorRadius, float minorRadius,
-            const Color&in color, float alpha = 0,
-            float dur = 0.05f, int segments = 24, int sides = 12)
+            const Color&in color, int alpha = 0,
+            float dur = 0.05f, float segments = 24, float sides = 12)
     {
         Torus(center, normal, majorRadius, minorRadius,
             color[0], color[1], color[2], alpha, dur, segments, sides);
@@ -1661,7 +1661,7 @@ class DebugRenderer
            float length, float radius,
            float turns,
            int r, int g, int b,
-           float dur = 0.05f, int segments = 64)
+           float dur = 0.05f, float segments = 64)
     {
         if (length <= 0 || radius <= 0) return;
 
@@ -1673,8 +1673,8 @@ class DebugRenderer
         Vector right = forward.Cross(arb).Normalized();
         Vector up    = forward.Cross(right);
 
-        float step = (turns * 6.283185f) / float(segments);
-        float heightStep = length / float(segments);
+        float step = (turns * 6.283185f) / segments;
+        float heightStep = length / segments;
 
         Vector prev = start;
 
@@ -1701,7 +1701,7 @@ class DebugRenderer
     void Helix(const Vector&in start, const Vector&in dir,
             float length, float radius, float turns,
             const Color&in color,
-            float dur = 0.05f, int segments = 64)
+            float dur = 0.05f, float segments = 64)
     {
         Helix(start, dir, length, radius, turns, color[0], color[1], color[2], dur, segments);
     }
@@ -1728,8 +1728,8 @@ class DebugRenderer
             const Vector&in dir1,
             const Vector&in dir2,
             float radius,
-            int r, int g, int b, float alpha = 0,
-            float dur = 0.05f, int segments = 24)
+            int r, int g, int b, int alpha = 0,
+            float dur = 0.05f, float segments = 24)
     {
         Vector n  = normal.Normalized();
         Vector d1 = dir1.Normalized();
@@ -1748,8 +1748,8 @@ class DebugRenderer
             const Vector&in dir1,
             const Vector&in dir2,
             float radius,
-            const Color&in color, float alpha = 0,
-            float dur = 0.05f, int segments = 24)
+            const Color&in color, int alpha = 0,
+            float dur = 0.05f, float segments = 24)
     {
         Angle(center, normal, dir1, dir2, radius,
             color[0], color[1], color[2], alpha, dur, segments);
@@ -1759,8 +1759,8 @@ class DebugRenderer
             const Vector&in point1,
             const Vector&in point2,
             float radius = 20.0f,
-            int r = 255, int g = 200, int b = 100, float alpha = 0,
-            float dur = 0.1f, int segments = 24)
+            int r = 255, int g = 200, int b = 100, int alpha = 0,
+            float dur = 0.1f, float segments = 24)
     {
         Vector d1 = (point1 - center).Normalized();
         Vector d2 = (point2 - center).Normalized();
@@ -1781,7 +1781,7 @@ class DebugRenderer
             const Vector&in point2,
             const Color&in color,
             float radius = 20.0f,
-            float dur = 0.1f, int segments = 24)
+            float dur = 0.1f, float segments = 24)
     {
         Angle(center, point1, point2, radius,
             color[0], color[1], color[2], 0, dur, segments);
@@ -1800,7 +1800,7 @@ class DebugRenderer
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
                 float rotDeg,
-                int r, int g, int b, float alpha = 0, float dur = 0.05f)
+                int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         Vector up = dir.Normalized();
 
@@ -1858,21 +1858,21 @@ class DebugRenderer
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
                 float rotDeg,
-                const Color&in color, float alpha = 0, float dur = 0.05f)
+                const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         Pyramid(origin, dir, size, rotDeg, color[0], color[1], color[2], alpha, dur);
     }
 
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
-                int r, int g, int b, float alpha = 0, float dur = 0.05f)
+                int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         Pyramid(origin, dir, size, 0.0f, r, g, b, alpha, dur);
     }
 
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
-                const Color&in color, float alpha = 0, float dur = 0.05f)
+                const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         Pyramid(origin, dir, size, 0.0f, color[0], color[1], color[2], alpha, dur);
     }
@@ -1880,7 +1880,7 @@ class DebugRenderer
 
     void Tetrahedron(const Vector&in center, const Vector&in dir,
                     float radius,
-                    int r, int g, int b, float alpha = 0, float dur = 0.05f)
+                    int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         Vector up = dir.Normalized();
 
@@ -1926,7 +1926,7 @@ class DebugRenderer
 
     void Tetrahedron(const Vector&in center, const Vector&in dir,
                     float radius,
-                    const Color&in color, float alpha = 0, float dur = 0.05f)
+                    const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         Tetrahedron(center, dir, radius, color[0], color[1], color[2], alpha, dur);
     }
@@ -1944,7 +1944,7 @@ class DebugRenderer
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
             float rotDeg,
-            int r, int g, int b, float alpha = 0, float dur = 0.05f)
+            int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         Vector fwd = dir.Normalized();
 
@@ -2014,7 +2014,7 @@ class DebugRenderer
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
             float rotDeg,
-            const Color&in color, float alpha = 0, float dur = 0.05f)
+            const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         Prism(origin, dir, length, size, rotDeg,
             color[0], color[1], color[2], alpha, dur);
@@ -2022,14 +2022,14 @@ class DebugRenderer
 
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
-            int r, int g, int b, float alpha = 0, float dur = 0.05f)
+            int r, int g, int b, int alpha = 0, float dur = 0.05f)
     {
         Prism(origin, dir, length, size, 0.0f, r, g, b, alpha, dur);
     }
 
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
-            const Color&in color, float alpha = 0, float dur = 0.05f)
+            const Color&in color, int alpha = 0, float dur = 0.05f)
     {
         Prism(origin, dir, length, size, 0.0f,
             color[0], color[1], color[2], alpha, dur);
@@ -2038,8 +2038,8 @@ class DebugRenderer
 
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float innerRadius,
-            int r, int g, int b, float alpha = 0,
-            float dur = 0.05f, int segments = 16)
+            int r, int g, int b, int alpha = 0,
+            float dur = 0.05f, float segments = 16)
     {
         if (outerRadius <= 0.0f) return;
         if (innerRadius < 0.0f)  innerRadius = 0.0f;
@@ -2057,7 +2057,7 @@ class DebugRenderer
         Vector right = dir.Cross(arb).Normalized();
         Vector up    = dir.Cross(right);
 
-        float step = 6.283185f / float(segments);
+        float step = 6.283185f / segments;
 
         _BatchBegin();
 
@@ -2119,8 +2119,8 @@ class DebugRenderer
 
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float innerRadius,
-            const Color&in color, float alpha = 0,
-            float dur = 0.05f, int segments = 16)
+            const Color&in color, int alpha = 0,
+            float dur = 0.05f, float segments = 16)
     {
         Tube(start, end, outerRadius, innerRadius,
             color[0], color[1], color[2], alpha, dur, segments);
@@ -2129,8 +2129,8 @@ class DebugRenderer
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float wallThickness,
             bool useThickness,
-            int r, int g, int b, float alpha = 0,
-            float dur = 0.05f, int segments = 16)
+            int r, int g, int b, int alpha = 0,
+            float dur = 0.05f, float segments = 16)
     {
         float inner = useThickness
             ? _max(0.0f, outerRadius - wallThickness)
@@ -2142,8 +2142,8 @@ class DebugRenderer
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float wallThickness,
             bool useThickness,
-            const Color&in color, float alpha = 0,
-            float dur = 0.05f, int segments = 16)
+            const Color&in color, int alpha = 0,
+            float dur = 0.05f, float segments = 16)
     {
         Tube(start, end, outerRadius, wallThickness, useThickness,
             color[0], color[1], color[2], alpha, dur, segments);
