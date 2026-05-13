@@ -4,6 +4,8 @@ A utility for visually debugging Angel Script logic in Portal 2 Community Editio
 
 It allows you to quickly draw any basic shapes in the world: lines, arrows, geometric shapes, text, paths, frustums, and etc.
 
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d0844428-a57b-410a-9dd0-413567d33c8c" />
+
 ## Possibilities
 
 ### Basic primitives
