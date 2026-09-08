@@ -19,6 +19,67 @@
 */
 
 
+// ----------------------------------------------
+//  Internal utilities
+// ----------------------------------------------
+
+namespace Internal {
+    float _max(float a, float b)
+    {
+        return (a > b) ? a : b;
+    }
+    int _max(int a, int b)
+    {
+        return (a > b) ? a : b;
+    }
+    float _min(float a, float b)
+    {
+        return (a < b) ? a : b;
+    }
+    int _min(int a, int b)
+    {
+        return (a < b) ? a : b;
+    }
+    // Truncates float to 2 decimal places for readable text
+    string _truncf(float f)
+    {
+        int i  = int(f);
+        int fr = int(abs(f - float(i)) * 100.0f);
+        return i + "." + (fr < 10 ? "0" : "") + fr;
+    }
+    // ----------------------------------------------
+    //  Arrow Head (helper for Arrow and DoubleArrow)
+    // ----------------------------------------------
+    float SafeAcos(float dot)
+    {
+        if (dot > 1.0f) dot = 1.0f;
+        if (dot < -1.0f) dot = -1.0f;
+        return acos(dot);
+    }
+
+    void _ArrowHeadCone(const Vector&in tip, const Vector&in dir,
+                            float headLength, float headWidth,
+                            int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f,
+                            float segments = 12)
+    {
+        if (headLength <= 0.0f) return;
+        Vector baseCenter = tip - dir * headLength;
+        
+        float halfAngle = atan(headWidth / headLength);
+        
+        debug::Cone(tip, dir * -1.0f, halfAngle, headLength,  r, g, b, alpha, ignoreZ, dur);
+        if (alpha > 0)
+        {
+            // CHECK THIS LATER
+            debug::Disk(baseCenter, -dir, headWidth, r, g, b, alpha, ignoreZ, false, dur, segments);
+        }
+        else
+        {
+            debug::Disk(baseCenter, -dir, headWidth, r, g, b, 0, ignoreZ, false, dur, segments);
+        }
+    }
+}
+
 namespace DebugRendererColors
 {
     const Color RED     = Color(255, 50, 50);
@@ -41,75 +102,8 @@ namespace DebugRendererColors
 const float DEG2RAD = 0.017453292519943295f;
 const float RAD2DEG = 1.0f / DEG2RAD;
 
-class DebugRenderer
+namespace debug
 {
-    private CBaseEntity@ m_logic = null;
-    private CBaseEntity@ m_owner = null;
-    private Variant m_variant;
-
-
-    
-    // ----------------------------------------------
-    //  Init/Destroy
-    // ----------------------------------------------
-
-    DebugRenderer(CBaseEntity@ owner)
-    {
-        @m_owner = owner;
-        m_variant.SetString("");
-    }
-
-    bool Init()
-    {
-        @m_logic = util::CreateEntityByName("logic_script");
-        if (m_logic is null)
-        {
-            Warning("DebugRenderer: failed to create logic_script\n");
-            return false;
-        }
-
-        m_logic.KeyValue("targetname", "_dbgr_" + m_owner.GetEntityIndex());
-        m_logic.Spawn();
-        return true;
-    }
-
-    void Destroy()
-    {
-        if (m_logic !is null)
-        {
-            m_logic.Remove();
-            @m_logic = null;
-        }
-    }
-
-    bool IsValid() const { return m_logic !is null; }
-
-    // Manual winding override. Only affects Triangle() calls outside of _BatchBegin/_BatchFlush.
-    // For internal geometry, use TriangleInv() directly.
-    // To be honest, I'm really too lazy to add the `invert` parameter to every method.
-    private bool m_invertTriangles = false;
-    bool INVERT_TRIANGLES
-    {
-        get const
-        {
-            return m_invertTriangles;
-        }
-        
-        set
-        {
-            m_invertTriangles = value;
-        }
-    }
-
-
-    // ==============================================
-    //
-    // 
-    //
-    // ==============================================
-
-
-
 
     // ==============================================
     //
@@ -119,58 +113,35 @@ class DebugRenderer
 
 
     void Line(const Vector&in pa, const Vector&in pb,
-              int r, int g, int b, float dur = 0.05f)
+              const Color&in color, bool ignoreZ = false, float dur = 0.05f)
     {
-        _exec("DebugDrawLine(" +
-              _v(pa) + "," + _v(pb) + "," +
-              r + "," + g + "," + b + ",false," + dur + ")");
+        Line(pa, pb, color[0], color[1], color[2], ignoreZ, dur);
     }
 
-    void Line(const Vector&in pa, const Vector&in pb,
-              const Color&in color, float dur = 0.05f)
+    void Circle(const Vector&in origin, float radius,
+            const Color&in color, int alpha = 255, bool ignoreZ = false, float dur = 0.05f)
     {
-        Line(pa, pb, color[0], color[1], color[2], dur);
+        Circle(origin, radius, color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
-
-    void Circle(const Vector&in origin, const Vector&in normal, float radius,
-          int r, int g, int b, float dur = 0.05f, float segments = 16)
+    void Circle(const Vector&in origin, const Vector&in xAxis, const Vector&in yAxis, float radius,
+            const Color&in color, int alpha = 255, bool ignoreZ = false, float dur = 0.05f)
     {
-        if (radius <= 0.001f || segments < 3) return;
+        Circle(origin, xAxis, yAxis, radius, color[0], color[1], color[2], alpha, ignoreZ, dur);
+    }
 
-        Vector arb = Vector(0, 0, 1);
-        if (fabs(normal.z) > 0.98f)
-            arb = Vector(1, 0, 0);
-
-        Vector right = normal.Cross(arb).Normalized();
-        Vector up    = normal.Cross(right).Normalized();
-
-        float step = 6.283185f / segments;
-
-        _BatchBegin();
-
-        for (int i = 0; i < segments; i++)
-        {
-            float a1 = float(i)     * step;
-            float a2 = float(i + 1) * step;
-
-            Vector p1 = right * cos(a1) * radius + up * sin(a1) * radius;
-            Vector p2 = right * cos(a2) * radius + up * sin(a2) * radius;
-
-            Vector v1 = origin + p1;
-            Vector v2 = origin + p2;
-
-            // Wireframe
-            _bLine(v1, v2, r, g, b, dur); 
-        }
-
-        _BatchFlush();
+    void Circle(const Vector&in origin, const QAngle&in angles, float radius,
+            const Color&in color, int alpha = 255, bool ignoreZ = false, float dur = 0.05f)
+    {
+        Circle(origin, angles, radius, color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
     void Circle(const Vector&in origin, const Vector&in normal, float radius,
-            const Color&in color, int alpha = 255, float dur = 0.05f, float segments = 16)
+            const Color&in color, int alpha = 255, bool ignoreZ = false, float dur = 0.05f)
     {
-        Circle(origin, normal, radius, color[0], color[1], color[2], dur, segments);
+        QAngle ang;
+        VectorAngles(normal, ang);
+        Circle(origin, ang, radius, color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
 
@@ -183,7 +154,8 @@ class DebugRenderer
             float radius,
             float angleDegrees,       
             int r, int g, int b, 
-            int alpha = 0,               
+            int alpha = 0,  
+            bool ignoreZ = false,             
             float dur = 0.05f, 
             float segments = 24)
     {
@@ -200,8 +172,6 @@ class DebugRenderer
 
         Vector prev = center + up * radius;
 
-        _BatchBegin();
-
         for (int i = 1; i <= segments; i++)
         {
             currentAngle = float(i) * step;
@@ -213,17 +183,16 @@ class DebugRenderer
 
             if (alpha <= 0)
             {
-                _bLine(prev, current, r, g, b, dur);
+                Line(prev, current, r, g, b, ignoreZ, dur);
             }
             else
             {
-                Triangle(center, prev, current, r, g, b, alpha, dur);
+                Triangle(center, prev, current, r, g, b, alpha, ignoreZ, dur);
             }
 
             prev = current;
         }
 
-        _BatchFlush();
     }
 
     void Arc(const Vector&in center, 
@@ -233,18 +202,19 @@ class DebugRenderer
             float angleDegrees,
             const Color&in color, 
             int alpha = 0, 
+            bool ignoreZ = false,
             float dur = 0.05f, 
             float segments = 24)
     {
-        Arc(center, normal, startDir, radius, angleDegrees, 
-            color[0], color[1], color[2], alpha, dur, segments);
+         Arc(center, normal, startDir, radius, angleDegrees, 
+            color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
 
     void ArcBetween(const Vector&in center, const Vector&in normal,
                 const Vector&in startDir, const Vector&in endDir,
                 float radius, int r, int g, int b, int alpha = 0,
-                float dur = 0.05f, float segments = 24)
+                bool ignoreZ = false, float dur = 0.05f, float segments = 24)
     {
         Vector pa = startDir.Normalized();
         Vector pb = endDir.Normalized();
@@ -252,106 +222,39 @@ class DebugRenderer
         float angle = acos(pa.Dot(pb)) * RAD2DEG;
         if (angle < 0.1f) angle = 0.1f;
         
-        Arc(center, normal, pa, radius, angle, r, g, b, alpha, dur, segments);
+         Arc(center, normal, pa, radius, angle, r, g, b, alpha, ignoreZ, dur, segments);
     }
 
     void ArcBetween(const Vector&in center, const Vector&in normal,
                 const Vector&in startDir, const Vector&in endDir,
-                float radius, const Color&in color, int alpha = 0,
-                float dur = 0.05f, float segments = 24)
+                float radius, const Color&in color, int alpha = 0, 
+                bool ignoreZ = false, float dur = 0.05f, float segments = 24)
     {
-        ArcBetween(center, normal, startDir, endDir, radius, 
-            color[0], color[1], color[2], alpha, dur, segments);
-    }
-
-
-    void _bTri(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-           int r, int g, int b, int a, float dur)
-    {
-        m_batch += "DebugDrawTri(" +
-                _v(p1) + "," + _v(p2) + "," + _v(p3) + "," +
-                r + "," + g + "," + b + "," + a + ",false," + dur + ");";
-    }
-
-    void _bTri(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-           const Color&in color, int a, float dur)
-    {
-        _bTri(p1, p2, p3, color[0], color[1], color[2], a, dur);
-    }
-
-    
-    void _bTriInv(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-                int r, int g, int b, int a, float dur)
-    {
-        _bTri(p1, p3, p2, r, g, b, a, dur);
-    }
-
-    void _bTriInv(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-                const Color&in color, int a, float dur)
-    {
-        _bTri(p1, p3, p2, color[0], color[1], color[2], a, dur);
+         ArcBetween(center, normal, startDir, endDir, radius, 
+            color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
 
     void Triangle(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-              int r, int g, int b, int a = 255, float dur = 0.05f)
+                const Color&in color, int a = 255, bool ignoreZ = false, float dur = 0.05f)
     {
-        if (a <= 0)
-        {
-            _bLine(p1, p2, r, g, b, dur);
-            _bLine(p2, p3, r, g, b, dur);
-            _bLine(p3, p1, r, g, b, dur);
-        }
-        else
-        {
-            if (m_batch.length() > 0)
-            {
-                _bTri(p1, p2, p3, r, g, b, a, dur);
-            }
-            else
-            {
-                if (INVERT_TRIANGLES)
-                {
-                    _exec("DebugDrawTri(" + _v(p1) + "," + _v(p3) + "," + _v(p2) + "," +
-                        r + "," + g + "," + b + "," + a + ",false," + dur + ")");
-                }
-                else
-                {
-                    _exec("DebugDrawTri(" + _v(p1) + "," + _v(p2) + "," + _v(p3) + "," +
-                        r + "," + g + "," + b + "," + a + ",false," + dur + ")");
-                }
-            }
-        }
-    }
-
-    void Triangle(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-                const Color&in color, int a = 255, float dur = 0.05f)
-    {
-        Triangle(p1, p2, p3, color[0], color[1], color[2], a, dur);
+        Triangle(p1, p2, p3, color[0], color[1], color[2], a, ignoreZ, dur);
     }
 
 
     void TriangleInv(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-                 int r, int g, int b, int a = 255, float dur = 0.05f)
+                 int r, int g, int b, int a = 255, bool ignoreZ = false, float dur = 0.05f)
     {
-        Triangle(p1, p3, p2, r, g, b, a, dur); 
+        Triangle(p1, p3, p2, r, g, b, a, ignoreZ, dur); 
     }
 
     void TriangleInv(const Vector&in p1, const Vector&in p2, const Vector&in p3,
-                 const Color&in color, int a = 255, float dur = 0.05f)
+                 const Color&in color, int a = 255, bool ignoreZ = false, float dur = 0.05f)
     {
-        Triangle(p1, p3, p2, color[0], color[1], color[2], a, dur);
+        Triangle(p1, p3, p2, color[0], color[1], color[2], a, ignoreZ, dur);
     }
 
 
-    void Box(const Vector&in origin,
-             const Vector&in mins, const Vector&in maxs,
-             int r, int g, int b, int alpha = 0, float dur = 0.05f)
-    {
-        _exec("DebugDrawBox(" +
-              _v(origin) + "," + _v(mins) + "," + _v(maxs) + "," +
-              r + "," + g + "," + b + "," + alpha + "," + dur + ")");
-    }
 
     void Box(const Vector&in origin,
              const Vector&in mins, const Vector&in maxs,
@@ -361,16 +264,6 @@ class DebugRenderer
     }
 
 
-    void BoxAngles(const Vector&in origin,
-               const Vector&in mins, const Vector&in maxs,
-               const QAngle&in angles,
-               int r, int g, int b, int alpha = 0, float dur = 0.05f)
-    {
-        _exec("DebugDrawBoxAngles(" +
-            _v(origin) + "," + _v(mins) + "," + _v(maxs) + "," +
-            _v(angles) + "," +                    
-            r + "," + g + "," + b + "," + alpha + "," + dur + ")");
-    }
 
     void BoxAngles(const Vector&in origin,
                 const Vector&in mins, const Vector&in maxs,
@@ -395,49 +288,124 @@ class DebugRenderer
         OBox(center, size, angles, color[0], color[1], color[2], alpha, dur);
     }
 
-
-    // Useful? Maybe not, buuut okay
-    void Grid(const Vector&in origin)
+    void BoxDirection(const Vector&in origin,
+                const Vector&in mins, const Vector&in maxs,
+                const Vector&in forward,
+                const Color&in color, int alpha = 0, float dur = 0.05f)
     {
-        _exec("DebugDrawGrid(" + _v(origin) + ")");
+	    BoxDirection(origin, mins, maxs, forward, color[0], color[1], color[2], alpha, dur);
+    }
+
+    void BoxDirection(const Vector&in center, const Vector&in size, const Vector&in forward, 
+          int r, int g, int b, int alpha = 0, float dur = 0.05f)
+    {
+        Vector mins = size * -0.5f;
+        Vector maxs = size * 0.5f;
+        BoxDirection(center, mins, maxs, forward, r, g, b, alpha, dur);
+    }
+
+    void BoxDirection(const Vector&in center, const Vector&in size, const Vector&in forward, 
+          const Color&in color, int alpha = 0, float dur = 0.05f)
+    {
+        BoxDirection(center, size, forward, color[0], color[1], color[2], alpha, dur);
     }
 
 
-    void Cross(const Vector&in pos, float size,
-            int r, int g, int b, float dur = 0.05f)
-    {
-        
-        _BatchBegin();
-
-        // X axis
-        _bLine(pos - Vector(size, 0, 0), 
-            pos + Vector(size, 0, 0), 
-            r, g, b, dur);
-
-        // Y axis
-        _bLine(pos - Vector(0, size, 0), 
-            pos + Vector(0, size, 0), 
-            r, g, b, dur);
-
-        // Z axis
-        _bLine(pos - Vector(0, 0, size), 
-            pos + Vector(0, 0, size), 
-            r, g, b, dur);
-
-        _BatchFlush();
-    }
     
     void Cross(const Vector&in pos, float size,
-               const Color&in color, float dur = 0.05f)
+            const Color&in color, bool ignoreZ = false, float dur = 0.05f)
     {
-        Cross(pos, size, color[0], color[1], color[2], dur);
+        Cross(pos, size, color[0], color[1], color[2], ignoreZ, dur);
     }
 
+    // LATER CROSS 3D - 3DOriented
+    void Cross3D(const Vector&in pos, float size,
+               const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        Cross3D(pos, size, color[0], color[1], color[2], ignoreZ, dur);
+    }
+
+    void Cross3D(const Vector&in pos, const Vector&in mins, const Vector&in maxs,
+            const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        Cross3D(pos, mins, maxs, color[0], color[1], color[2], ignoreZ, dur);
+    }
+
+
+    void Cross3DOriented(const Vector&in pos, const QAngle&in angles, float size,
+               const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        Cross3DOriented(pos, angles, size, color[0], color[1], color[2], ignoreZ, dur);
+    }
+
+    /* int c??? - What does that even Meeean???
+    void Cross3DOriented(const matrix3x4_t&in m, float size,
+            int c, bool ignoreZ = false, float dur = 0.05f)
+    {
+        Cross3DOriented(m, size, c, ignoreZ, dur);
+    }*/
+
+    void DrawTickMarkedLine(const Vector&in start, const Vector&in end, float tickDist, int tickTextDist, const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        DrawTickMarkedLine(start, end, tickDist, tickTextDist, color[0], color[1], color[2], ignoreZ, dur);
+    }
+
+    void EntityBounds(const CBaseEntity@ entity, const Color&in color, float dur = 0.05f)
+    {
+        EntityBounds(entity, color[0], color[1], color[2], color[3], dur);
+    }
+
+    void EntityText(int entityId, int offset, const string&in text, const Color&in color, float dur = 0.05f)
+    {
+        EntityText(entityId, offset, text, dur, color[0], color[1], color[2], color[3]);
+    }
+
+    void EntityTextAtPosition(const Vector&in origin, int offset, const string&in text, const Color&in color, float dur = 0.05f)
+    {
+        EntityTextAtPosition(origin, offset, text, dur, color[0], color[1], color[2], color[3]);
+    }
+
+    void HorzArrow(const Vector&in start, const Vector&in end, float width, const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        HorzArrow(start, end, width, color[0], color[1], color[2], color[3], ignoreZ, dur);
+    }
+
+    void VertArrow(const Vector&in start, const Vector&in end, float width, const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        VertArrow(start, end, width, color[0], color[1], color[2], color[3], ignoreZ, dur);
+    }
+
+    void YawArrow(const Vector&in start, float yaw, float length, float width, const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        YawArrow(start, yaw, length, width, color[0], color[1], color[2], color[3], ignoreZ, dur);
+    }
+
+    void ScreenText(float x, float y, const string&in text, const Color&in color, float dur = 0.05f)
+    {
+        ScreenText(x, y, text, color[0], color[1], color[2], color[3], dur);
+    }
+
+    void SweptBox(const Vector&in start, const Vector&in end, const Vector&in mins, const Vector&in maxs, const QAngle&in angles, const Color&in color, float dur = 0.05f)
+    {
+        SweptBox(start, end, mins, maxs, angles, color[0], color[1], color[2], color[3], dur);
+    }
+
+    void SweptBox(const Vector&in start, const Vector&in end, Vector size, const QAngle&in angles, const Color&in color, float dur = 0.05f)
+    {
+        Vector mins = size * -0.5f;
+        Vector maxs = size * 0.5f;
+        SweptBox(start, end, mins, maxs, angles, color[0], color[1], color[2], color[3], dur);
+    }
+
+    void Triangle(const Vector&in p1, const Vector&in p2, const Vector&in p3, const Color&in color, bool ignoreZ = false, float dur = 0.05f)
+    {
+        Triangle(p1, p2, p3, color[0], color[1], color[2], color[3], ignoreZ, dur);
+    }
 
     void PlaneSolid(const Vector&in origin, const Vector&in normal, 
                 float size = 100.0f,
                 int r = 255, int g = 100, int b = 100, int a = 80, 
-                float dur = 0.05f)
+                bool ignoreZ = false, float dur = 0.05f)
     {
         Vector arb = Vector(0, 0, 1);
         if (fabs(normal.z) > 0.98f)
@@ -451,18 +419,24 @@ class DebugRenderer
         Vector p3 = origin - right - up;
         Vector p4 = origin - right + up;
 
-        _BatchBegin();
         
-        Triangle(p1, p2, p3, r, g, b, a, dur);
-        Triangle(p1, p3, p4, r, g, b, a, dur);
+        Triangle(p1, p2, p3, r, g, b, a, ignoreZ, dur);
+        Triangle(p1, p3, p4, r, g, b, a, ignoreZ, dur);
         
-        _BatchFlush();
+    }
+
+    void PlaneSolid(const Vector&in origin, const Vector&in normal, 
+            float size = 100.0f,
+            Color color = Color(255, 100, 100, 80),
+            bool ignoreZ = false, float dur = 0.05f)
+    {
+        PlaneSolid(origin, normal, size, color[0], color[1], color[2], color[3], ignoreZ, dur);
     }
 
     void PlaneWire(const Vector&in origin, const Vector&in normal, 
                float size = 100.0f, int divisions = 4,
                int r = 255, int g = 255, int b = 100, 
-               float dur = 0.05f)
+               bool ignoreZ = false, float dur = 0.05f)
     {
         Vector arb = Vector(0, 0, 1);
         if (fabs(normal.z) > 0.98f)
@@ -471,12 +445,12 @@ class DebugRenderer
         Vector right = normal.Cross(arb).Normalized() * (size * 0.5f);
         Vector up    = normal.Cross(right).Normalized() * (size * 0.5f);
 
-        _BatchBegin();
+        
 
-        Line(origin + right + up, origin + right - up, r, g, b, dur);
-        Line(origin + right - up, origin - right - up, r, g, b, dur);
-        Line(origin - right - up, origin - right + up, r, g, b, dur);
-        Line(origin - right + up, origin + right + up, r, g, b, dur);
+        Line(origin + right + up, origin + right - up, r, g, b, ignoreZ, dur);
+        Line(origin + right - up, origin - right - up, r, g, b, ignoreZ, dur);
+        Line(origin - right - up, origin - right + up, r, g, b, ignoreZ, dur);
+        Line(origin - right + up, origin + right + up, r, g, b, ignoreZ, dur);
 
         if (divisions > 1)
         {
@@ -485,29 +459,29 @@ class DebugRenderer
             {
                 float t = step * i - 0.5f;
                 
-                // Horizontal lines
+                // Horizontal Lines
                 Line(origin + right + up + (up * -2.0f * t), 
-                    origin - right + up + (up * -2.0f * t), r, g, b, dur);
+                    origin - right + up + (up * -2.0f * t), r, g, b, ignoreZ, dur);
                 
-                // Vertical lines
+                // Vertical Lines
                 Line(origin + right + up + (right * -2.0f * t), 
-                    origin + right - up + (right * -2.0f * t), r, g, b, dur);
+                    origin + right - up + (right * -2.0f * t), r, g, b, ignoreZ, dur);
             }
         }
 
-        _BatchFlush();
+        
     }
 
     void Plane(const Vector&in origin, const Vector&in normal, float size = 100.0f,
-           int r = 255, int g = 100, int b = 100, int a = 255, float dur = 0.05f)
+           int r = 255, int g = 100, int b = 100, int a = 255, bool ignoreZ = false, float dur = 0.05f)
     {
-        PlaneWire(origin, normal, size, 4, r, g, b, dur);
-        PlaneSolid(origin, normal, size, r, g, b, a, dur);
+        PlaneWire(origin, normal, size, 4, r, g, b, ignoreZ, dur);
+        PlaneSolid(origin, normal, size, r, g, b, a, ignoreZ, dur);
     }
 
 
     void Disk(const Vector&in origin, const Vector&in normal, float radius,
-          int r, int g, int b, int alpha = 255, bool circle = false, float dur = 0.05f, float segments = 16)
+          int r, int g, int b, int alpha = 255, bool ignoreZ = false, bool circle = false, float dur = 0.05f, float segments = 16)
     {
         if (radius <= 0.001f || segments < 3) return;
 
@@ -520,7 +494,7 @@ class DebugRenderer
 
         float step = 6.283185f / segments;
 
-        _BatchBegin();
+        
 
         for (int i = 0; i < segments; i++)
         {
@@ -535,30 +509,30 @@ class DebugRenderer
 
             if(circle)
             {
-                _bLine(v1, v2, r, g, b, dur); 
+                Line(v1, v2, r, g, b, ignoreZ, dur); 
             }
 
             if (alpha <= 0)
             {
                 // Wireframe
-                _bLine(origin, v1, r, g, b, dur);
-                _bLine(origin, v2, r, g, b, dur);
+                Line(origin, v1, r, g, b, ignoreZ, dur);
+                Line(origin, v2, r, g, b, ignoreZ, dur);
             }
             else
             {
                 // Solid
-                TriangleInv(origin, v1, v2, r, g, b, alpha, dur);
+                TriangleInv(origin, v1, v2, r, g, b, alpha, ignoreZ, dur);
                 
             }
         }
 
-        _BatchFlush();
+        
     }
 
     void Disk(const Vector&in origin, const Vector&in normal, float radius,
-            const Color&in color, int alpha = 255, bool circle = false, float dur = 0.05f, float segments = 16)
+            const Color&in color, int alpha = 255, bool ignoreZ = false, bool circle = false, float dur = 0.05f, float segments = 16)
     {
-        Disk(origin, normal, radius, color[0], color[1], color[2], alpha, circle, dur, segments);
+        Disk(origin, normal, radius, color[0], color[1], color[2], alpha, ignoreZ, circle, dur, segments);
     }
 
 
@@ -571,32 +545,6 @@ class DebugRenderer
     // ==============================================
 
 
-    // ----------------------------------------------
-    //  Arrow Head (helper for Arrow and DoubleArrow)
-    // ----------------------------------------------
-
-    private void _ArrowHeadCone(const Vector&in tip, const Vector&in dir,
-                            float headLength, float headWidth,
-                            int r, int g, int b, int alpha = 0, float dur = 0.05f,
-                            float segments = 12)
-    {
-        if (headLength <= 0.0f) return;
-
-        Vector baseCenter = tip - dir * headLength;
-        
-        float halfAngleDeg = RAD2DEG * atan(headWidth / headLength);
-        
-        Cone(tip, dir * -1.0f, headLength, halfAngleDeg, r, g, b, alpha, dur, segments);
-        
-        if (alpha > 0)
-        {
-            Disk(baseCenter, -dir, headWidth, r, g, b, alpha, false, dur, segments);
-        }
-        else
-        {
-            Disk(baseCenter, -dir, headWidth, r, g, b, 0, false, dur, segments);
-        }
-    }
 
 
     // ----------------------------------------------
@@ -604,33 +552,33 @@ class DebugRenderer
     // ------------------------------
 
     void Arrow(const Vector&in from, const Vector&in to,
-               int r, int g, int b, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
+               int r, int g, int b, bool ignoreZ = false, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
-        Line(from, to, r, g, b, dur);
+        Line(from, to, r, g, b, ignoreZ, dur);
         Vector dir = (to - from).Normalized();
-        _ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, b, 0, dur, segments);
+        Internal::_ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, b, 0, ignoreZ, dur, segments);
     }
 
     void Arrow(const Vector&in from, const Vector&in to,
-               const Color&in color, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
+               const Color&in color, bool ignoreZ = false, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
-        Arrow(from, to, color[0], color[1], color[2], dur, headSize, segments);
+        Arrow(from, to, color[0], color[1], color[2], ignoreZ, dur, headSize, segments);
     }
 
     void DoubleArrow(const Vector&in from, const Vector&in to,
-                     int r, int g, int b, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
+                     int r, int g, int b, bool ignoreZ = false, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
-        Line(from, to, r, g, b, dur);
+        Line(from, to, r, g, b, ignoreZ, dur);
         
         Vector dir = (to - from).Normalized();
-        _ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, b, 0, dur, segments);
-        _ArrowHeadCone(from, -dir, headSize, headSize * 0.6f, r, g, b, 0, dur, segments);
+        Internal::_ArrowHeadCone(to, dir, headSize, headSize * 0.6f, r, g, b, 0, ignoreZ, dur, segments);
+        Internal::_ArrowHeadCone(from, -dir, headSize, headSize * 0.6f, r, g, b, 0, ignoreZ, dur, segments);
     }
 
     void DoubleArrow(const Vector&in from, const Vector&in to,
-                     const Color&in color, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
+                     const Color&in color, bool ignoreZ = false, float dur = 0.05f, float headSize = 8.0f, float segments = 12)
     {
-        DoubleArrow(from, to, color[0], color[1], color[2], dur, headSize, segments);
+        DoubleArrow(from, to, color[0], color[1], color[2], ignoreZ, dur, headSize, segments);
     }
 
 
@@ -639,30 +587,30 @@ class DebugRenderer
     // ------------------------------
     
     void ArrowOld(const Vector&in from, const Vector&in to,
-               int r, int g, int b, float dur = 0.05f)
+               int r, int g, int b, bool ignoreZ = false, float dur = 0.05f)
     {
-        Line(from, to, r, g, b, dur);
-        Cross(to, 3.0f, r, g, b, dur);
+        Line(from, to, r, g, b, ignoreZ, dur);
+        Cross(to, 3.0f, r, g, b, ignoreZ, dur);
     }
 
     void ArrowOld(const Vector&in from, const Vector&in to,
-               const Color&in color, float dur = 0.05f)
+               const Color&in color, bool ignoreZ = false, float dur = 0.05f)
     {
-        ArrowOld(from, to, color[0], color[1], color[2], dur);
+        ArrowOld(from, to, color[0], color[1], color[2], ignoreZ, dur);
     }
     
     void DoubleArrowOld(const Vector&in from, const Vector&in to,
-                     int r, int g, int b, float dur = 0.05f)
+                     int r, int g, int b, bool ignoreZ = false, float dur = 0.05f)
     {
-        Line(from, to, r, g, b, dur);
-        Cross(from, 3.5f, r, g, b, dur);
-        Cross(to,   3.5f, r, g, b, dur);
+        Line(from, to, r, g, b, ignoreZ, dur);
+        Cross(from, 3.5f, r, g, b, ignoreZ, dur);
+        Cross(to,   3.5f, r, g, b, ignoreZ, dur);
     }
 
     void DoubleArrowOld(const Vector&in from, const Vector&in to,
-                     const Color&in color, float dur = 0.05f)
+                     const Color&in color, bool ignoreZ = false, float dur = 0.05f)
     {
-        DoubleArrowOld(from, to, color[0], color[1], color[2], dur);
+        DoubleArrowOld(from, to, color[0], color[1], color[2], ignoreZ, dur);
     }
 
 
@@ -675,7 +623,7 @@ class DebugRenderer
     
 
     void Cylinder(const Vector&in start, const Vector&in end, float radius,
-                  int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
+                  int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         Vector dir = end - start;
         float len = dir.Length();
@@ -692,7 +640,7 @@ class DebugRenderer
         
         float step = 6.283185f / segments;
         
-        _BatchBegin();
+        
         
         Vector prevS, prevE;
         bool hasPrev = false;
@@ -711,14 +659,14 @@ class DebugRenderer
             {
                 if (alpha <= 0)
                 {
-                    _bLine(prevS, s, r, g, b, dur);   // start circle
-                    _bLine(prevE, e, r, g, b, dur);   // end circle
-                    _bLine(s, e, r, g, b, dur);       // side
+                    Line(prevS, s, r, g, b, ignoreZ, dur);   // start circle
+                    Line(prevE, e, r, g, b, ignoreZ, dur);   // end circle
+                    Line(s, e, r, g, b, ignoreZ, dur);       // side
                 }
                 else
                 {
-                    TriangleInv(prevS, s, e,   r, g, b, alpha, dur);
-                    TriangleInv(prevS, e, prevE, r, g, b, alpha, dur);
+                    TriangleInv(prevS, s, e,   r, g, b, alpha, ignoreZ, dur);
+                    TriangleInv(prevS, e, prevE, r, g, b, alpha, ignoreZ, dur);
                 }
             }
             
@@ -727,13 +675,13 @@ class DebugRenderer
             hasPrev = true;
         }
         
-        _BatchFlush();
+        
     }
 
     void Cylinder(const Vector&in start, const Vector&in end, float radius,
-                  const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
+                  const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
-        Cylinder(start, end, radius, color[0], color[1], color[2], alpha, dur, segments);
+        Cylinder(start, end, radius, color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
 
@@ -742,30 +690,32 @@ class DebugRenderer
     // ------------------------------
 
     void CappedCylinder(const Vector&in start, const Vector&in end, float radius,
-                    int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
+                    int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
 
-        Cylinder(start, end, radius, r, g, b, alpha, dur, segments);
+        Cylinder(start, end, radius, r, g, b, alpha, ignoreZ, dur, segments);
         
         if (alpha <= 0)
         {
             Vector dir = (end - start).Normalized();
-            Disk(start, -dir, radius, r, g, b, 0, false, dur, segments);
-            Disk(end,    dir, radius, r, g, b, 0, false, dur, segments);            
+            // CHECK THIS LATER
+            Disk(start, -dir, radius, r, g, b, 0, ignoreZ, false, dur, segments);
+            Disk(end,    dir, radius, r, g, b, 0, ignoreZ, false, dur, segments);            
         }
         else
         {
             Vector dir = (end - start).Normalized();
-            Disk(start, -dir, radius, r, g, b, alpha, false, dur, segments);
-            Disk(end,    dir, radius, r, g, b, alpha, false, dur, segments);
+            // CHECK THIS LATER
+            Disk(start, -dir, radius, r, g, b, alpha, ignoreZ, false, dur, segments);
+            Disk(end,    dir, radius, r, g, b, alpha, ignoreZ, false, dur, segments);
         }
         
     }
 
     void CappedCylinder(const Vector&in start, const Vector&in end, float radius,
-                        const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
+                        const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
-        CappedCylinder(start, end, radius, color[0], color[1], color[2], alpha, dur, segments);
+        CappedCylinder(start, end, radius, color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
 
@@ -777,62 +727,14 @@ class DebugRenderer
     // ==============================================
 
 
-    void Sphere(const Vector&in center, float radius,
-                int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 24)
+    void Sphere(const Vector&in center, const QAngle&in angles, float radius, const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
-        if (segments < 8)  segments = 8;
-        if (segments > 64) segments = 64;
-
-        _BatchBegin();
-
-        float latStep = 3.14159265359f / segments;
-        float lonStep = 6.28318530718f / segments;
-
-        for (int lat = 0; lat < segments; lat++)
-        {
-            float theta1 = float(lat)     * latStep;
-            float theta2 = float(lat + 1) * latStep;
-
-            float sinT1 = sin(theta1), cosT1 = cos(theta1);
-            float sinT2 = sin(theta2), cosT2 = cos(theta2);
-
-            for (int lon = 0; lon < segments; lon++)
-            {
-                float phi1 = float(lon)     * lonStep;
-                float phi2 = float(lon + 1) * lonStep;
-
-                float sinP1 = sin(phi1), cosP1 = cos(phi1);
-                float sinP2 = sin(phi2), cosP2 = cos(phi2);
-
-                Vector p1 = center + Vector(sinT1 * cosP1, sinT1 * sinP1, cosT1) * radius;
-                Vector p2 = center + Vector(sinT1 * cosP2, sinT1 * sinP2, cosT1) * radius;
-                Vector p3 = center + Vector(sinT2 * cosP2, sinT2 * sinP2, cosT2) * radius;
-                Vector p4 = center + Vector(sinT2 * cosP1, sinT2 * sinP1, cosT2) * radius;
-
-                if (alpha <= 0)
-                {
-                    _bLine(p1, p2, r, g, b, dur);
-                    _bLine(p2, p3, r, g, b, dur);
-                }
-                else
-                {
-                    Triangle(p1, p2, p3, r, g, b, alpha, dur);
-                    Triangle(p1, p3, p4, r, g, b, alpha, dur);
-                }
-            }
-        }
-
-        _BatchFlush();
-    }
-
-    void Sphere(const Vector&in center, float radius, const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
-    {
-        Sphere(center, radius, color[0], color[1], color[2], alpha, dur, segments);
+        Sphere(center, angles, radius, color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
 
     void Hemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                    int r, int g, int b, int alpha = 0,
+                    int r, int g, int b, int alpha = 0, bool ignoreZ = false,
                     float dur = 0.05f, float segments = 16, float rings = 8)
     {
         Vector forward, right;
@@ -841,7 +743,7 @@ class DebugRenderer
         float ringStep = 1.0f / rings;
         float angleStep = 6.283185f / segments;
 
-        _BatchBegin();
+        
 
         for (int ring = 0; ring < rings; ring++)
         {
@@ -872,25 +774,25 @@ class DebugRenderer
 
                 if (alpha <= 0)
                 {
-                    _bLine(p1, p2, r,g,b,dur);
-                    _bLine(p2, p3, r,g,b,dur);
+                    Line(p1, p2, r,g,b,ignoreZ,dur);
+                    Line(p2, p3, r,g,b,ignoreZ,dur);
                 }
                 else
                 {
-                    Triangle(p1, p2, p3, r,g,b,alpha,dur);
-                    Triangle(p1, p3, p4, r,g,b,alpha,dur);
+                    Triangle(p1, p2, p3, r,g,b,alpha, ignoreZ,dur);
+                    Triangle(p1, p3, p4, r,g,b,alpha, ignoreZ,dur);
                 }
             }
         }
 
-        _BatchFlush();
+        
     }
 
     void Hemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                    const Color&in color, int alpha = 0,
+                    const Color&in color, int alpha = 0, bool ignoreZ = false,
                     float dur = 0.05f, float segments = 16, float rings = 8)
     {
-        Hemisphere(center, upDir, radius, color[0], color[1], color[2], alpha, dur, segments, rings);
+       CapsuleHemi(center, upDir, radius, color[0], color[1], color[2], alpha, ignoreZ, dur, segments, rings);
     }
 
 
@@ -899,30 +801,31 @@ class DebugRenderer
     // -------------------------------------
 
     void CappedHemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                        int r, int g, int b, int alpha = 0,
+                        int r, int g, int b, int alpha = 0, bool ignoreZ = false,
                         float dur = 0.05f, float segments = 16, float rings = 8)
     {
         Vector dir = upDir.Normalized();
 
-        Hemisphere(center, dir, radius, r, g, b, alpha, dur, segments, rings);
+       CapsuleHemi(center, dir, radius, r, g, b, alpha, ignoreZ, dur, segments, rings);
 
         Vector baseCenter = center;  
 
         if (alpha <= 0)
         {
-            Disk(baseCenter, -dir, radius, r, g, b, 0, false, dur, segments);
+            // CHECK THIS LATER
+            Disk(baseCenter, -dir, radius, r, g, b, 0, ignoreZ, false, dur, segments);
         }
         else
         {
-            Disk(baseCenter, -dir, radius, r, g, b, alpha, false, dur, segments);
+            Disk(baseCenter, -dir, radius, r, g, b, alpha, ignoreZ, false, dur, segments);
         }
     }
 
     void CappedHemisphere(const Vector&in center, const Vector&in upDir, float radius,
-                        const Color&in color, int alpha = 0,
+                        const Color&in color, int alpha = 0, bool ignoreZ = false,
                         float dur = 0.05f, float segments = 16, float rings = 8)
     {
-        CappedHemisphere(center, upDir, radius, color[0], color[1], color[2], alpha, dur, segments, rings);
+        CappedHemisphere(center, upDir, radius, color[0], color[1], color[2], alpha, ignoreZ, dur, segments, rings);
     }
         
     
@@ -939,19 +842,11 @@ class DebugRenderer
     //  Capsule (cylinder + spheres)
     // --------------------------------------------
     
-    void Capsule(const Vector&in start, const Vector&in end, float radius,
-                 int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
-    {
-        Cylinder(start, end, radius, r, g, b, alpha, dur, segments);
-
-        Sphere(start, radius, r, g, b, alpha, dur, segments);
-        Sphere(end,   radius, r, g, b, alpha, dur, segments);
-    }
 
     void Capsule(const Vector&in start, const Vector&in end, float radius,
-                 const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
+                 const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, bool wireframe = false)
     {
-        Capsule(start, end, radius, color[0], color[1], color[2], alpha, dur, segments);
+        Capsule(start, end, radius, color[0], color[1], color[2], alpha, dur, wireframe, ignoreZ);
     }
 
 
@@ -961,7 +856,7 @@ class DebugRenderer
 
     void Capsule(const Vector&in start, const Vector&in end,
                  float radiusStart, float radiusEnd,
-                 int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
+                 int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         Vector dir = end - start;
         float len = dir.Length();
@@ -976,7 +871,7 @@ class DebugRenderer
 
         float step = 6.283185f / segments;
 
-        _BatchBegin();
+         
 
         Vector prevS, prevE;
         bool hasPrev = false;
@@ -996,34 +891,34 @@ class DebugRenderer
             {
                 if (alpha <= 0)
                 {
-                    _bLine(prevS, s, r, g, b, dur);
-                    _bLine(prevE, e, r, g, b, dur);
+                    Line(prevS, s, r, g, b, ignoreZ, dur);
+                    Line(prevE, e, r, g, b, ignoreZ, dur);
                 }
                 else
                 {
-                    Triangle(prevS, s, e, r, g, b, alpha, dur);
-                    Triangle(prevS, e, prevE, r, g, b, alpha, dur);
+                    Triangle(prevS, s, e, r, g, b, alpha, ignoreZ, dur);
+                    Triangle(prevS, e, prevE, r, g, b, alpha, ignoreZ, dur);
                 }
             }
-            _bLine(s, e, r, g, b, dur);  
+            Line(s, e, r, g, b, ignoreZ, dur);  
 
             prevS = s;
             prevE = e;
             hasPrev = true;
         }
 
-        Sphere(start, radiusStart, r, g, b, alpha, dur, segments);
-        Sphere(end,   radiusEnd,   r, g, b, alpha, dur, segments);
+        Sphere(start, radiusStart, r, g, b, ignoreZ, dur);
+        Sphere(end,   radiusEnd,   r, g, b, ignoreZ, dur);
 
-        _BatchFlush();
+        
     }
 
     void Capsule(const Vector&in start, const Vector&in end,
                  float radiusStart, float radiusEnd,
-                 const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
+                 const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         Capsule(start, end, radiusStart, radiusEnd,
-                color[0], color[1], color[2], alpha, dur, segments);
+                color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
 
@@ -1037,30 +932,30 @@ class DebugRenderer
 
 
     void CapsuleHemi(const Vector&in start, const Vector&in end, float radius,
-                     int r, int g, int b, int alpha = 0, float dur = 0.05f, 
+                     int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, 
                      float segments = 16, float rings = 6)
     {
         if ((end - start).LengthSqr() < 0.0001f)
         {
-            Sphere(start, radius, r, g, b, alpha, dur, segments);
+            Sphere(start, radius, r, g, b, ignoreZ, dur);
             return;
         }
 
 
-        Cylinder(start, end, radius, r, g, b, alpha, dur, segments);
+        Cylinder(start, end, radius, r, g, b, alpha, ignoreZ, dur, segments);
 
 
         Vector dir = (end - start).Normalized();
 
-        Hemisphere(start, -dir, radius, r, g, b, alpha, dur, segments, rings);
-        Hemisphere(end,   dir,  radius, r, g, b, alpha, dur, segments, rings);
+        Hemisphere(start, -dir, radius, r, g, b, alpha, ignoreZ, dur, segments, rings);
+       CapsuleHemi(end,   dir,  radius, r, g, b, alpha, ignoreZ, dur, segments, rings);
     }
 
     void CapsuleHemi(const Vector&in start, const Vector&in end, float radius,
-                     const Color&in color, int alpha = 0, float dur = 0.05f, 
+                     const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, 
                      float segments = 16, float rings = 6)
     {
-        CapsuleHemi(start, end, radius, color[0], color[1], color[2], alpha, dur, segments, rings);
+        CapsuleHemi(start, end, radius, color[0], color[1], color[2], alpha, ignoreZ, dur, segments, rings);
     }
 
 
@@ -1070,31 +965,31 @@ class DebugRenderer
 
     void CapsuleHemi(const Vector&in start, const Vector&in end,
                      float radiusStart, float radiusEnd,
-                     int r, int g, int b, int alpha = 0, float dur = 0.05f, 
+                     int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, 
                      float segments = 16, float rings = 6)
     {
         Vector dir = end - start;
         float len = dir.Length();
         if (len < 0.001f)
         {
-            Sphere(start, radiusStart, r, g, b, alpha, dur, segments);
+            Sphere(start, radiusStart, r, g, b, ignoreZ, dur);
             return;
         }
         dir /= len;
 
-        Capsule(start, end, radiusStart, radiusEnd, r, g, b, alpha, dur, segments);
+        Capsule(start, end, radiusStart, radiusEnd, r, g, b, alpha, ignoreZ, dur, segments);
 
-        Hemisphere(start, -dir, radiusStart, r, g, b, alpha, dur, segments, rings);
-        Hemisphere(end,   dir,  radiusEnd,   r, g, b, alpha, dur, segments, rings);
+        Hemisphere(start, -dir, radiusStart, r, g, b, alpha, ignoreZ, dur, segments, rings);
+        Hemisphere(end,   dir,  radiusEnd,   r, g, b, alpha, ignoreZ, dur, segments, rings);
     }
 
     void CapsuleHemi(const Vector&in start, const Vector&in end,
                      float radiusStart, float radiusEnd,
-                     const Color&in color, int alpha = 0, float dur = 0.05f, 
+                     const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, 
                      float segments = 16, float rings = 6)
     {
         CapsuleHemi(start, end, radiusStart, radiusEnd,
-                    color[0], color[1], color[2], alpha, dur, segments, rings);
+                    color[0], color[1], color[2], alpha, ignoreZ, dur, segments, rings);
     }
 
 
@@ -1111,73 +1006,73 @@ class DebugRenderer
                        const Vector&in nbl, const Vector&in nbr,
                        const Vector&in ftl, const Vector&in ftr,
                        const Vector&in fbl, const Vector&in fbr,
-                       int r, int g, int b, int alpha = 0, float dur = 0.05f)
+                       int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
-        _BatchBegin();
+         
 
         // Near plane
         if (alpha <= 0)
         {
-            _bLine(ntl, ntr, r, g, b, dur);
-            _bLine(ntr, nbr, r, g, b, dur);
-            _bLine(nbr, nbl, r, g, b, dur);
-            _bLine(nbl, ntl, r, g, b, dur);
+            Line(ntl, ntr, r, g, b, ignoreZ, dur);
+            Line(ntr, nbr, r, g, b, ignoreZ, dur);
+            Line(nbr, nbl, r, g, b, ignoreZ, dur);
+            Line(nbl, ntl, r, g, b, ignoreZ, dur);
         }
         else
         {
-            Triangle(ntl, ntr, nbr, r, g, b, alpha, dur);
-            Triangle(ntl, nbr, nbl, r, g, b, alpha, dur);
+            Triangle(ntl, ntr, nbr, r, g, b, alpha, ignoreZ, dur);
+            Triangle(ntl, nbr, nbl, r, g, b, alpha, ignoreZ, dur);
         }
 
         // Far plane
         if (alpha <= 0)
         {
-            _bLine(ftl, ftr, r, g, b, dur);
-            _bLine(ftr, fbr, r, g, b, dur);
-            _bLine(fbr, fbl, r, g, b, dur);
-            _bLine(fbl, ftl, r, g, b, dur);
+            Line(ftl, ftr, r, g, b, ignoreZ, dur);
+            Line(ftr, fbr, r, g, b, ignoreZ, dur);
+            Line(fbr, fbl, r, g, b, ignoreZ, dur);
+            Line(fbl, ftl, r, g, b, ignoreZ, dur);
         }
         else
         {
-            TriangleInv(ftl, ftr, fbr, r, g, b, alpha, dur);
-            TriangleInv(ftl, fbr, fbl, r, g, b, alpha, dur);
+            TriangleInv(ftl, ftr, fbr, r, g, b, alpha, ignoreZ, dur);
+            TriangleInv(ftl, fbr, fbl, r, g, b, alpha, ignoreZ, dur);
         }
 
         // Side faces
         if (alpha <= 0)
         {
-            _bLine(ntl, ftl, r, g, b, dur);
-            _bLine(ntr, ftr, r, g, b, dur);
-            _bLine(nbl, fbl, r, g, b, dur);
-            _bLine(nbr, fbr, r, g, b, dur);
+            Line(ntl, ftl, r, g, b, ignoreZ, dur);
+            Line(ntr, ftr, r, g, b, ignoreZ, dur);
+            Line(nbl, fbl, r, g, b, ignoreZ, dur);
+            Line(nbr, fbr, r, g, b, ignoreZ, dur);
         }
         else
         {
             // Right
-            TriangleInv(ntr, nbr, fbr, r, g, b, alpha, dur);
-            TriangleInv(ntr, fbr, ftr, r, g, b, alpha, dur);
+            TriangleInv(ntr, nbr, fbr, r, g, b, alpha, ignoreZ, dur);
+            TriangleInv(ntr, fbr, ftr, r, g, b, alpha, ignoreZ, dur);
             // Left
-            Triangle(ntl, nbl, fbl, r, g, b, alpha, dur);
-            Triangle(ntl, fbl, ftl, r, g, b, alpha, dur);
+            Triangle(ntl, nbl, fbl, r, g, b, alpha, ignoreZ, dur);
+            Triangle(ntl, fbl, ftl, r, g, b, alpha, ignoreZ, dur);
             // Top
-            TriangleInv(ntl, ntr, ftr, r, g, b, alpha, dur);
-            TriangleInv(ntl, ftr, ftl, r, g, b, alpha, dur);
+            TriangleInv(ntl, ntr, ftr, r, g, b, alpha, ignoreZ, dur);
+            TriangleInv(ntl, ftr, ftl, r, g, b, alpha, ignoreZ, dur);
             // Bottom
-            Triangle(nbl, nbr, fbr, r, g, b, alpha, dur);
-            Triangle(nbl, fbr, fbl, r, g, b, alpha, dur);
+            Triangle(nbl, nbr, fbr, r, g, b, alpha, ignoreZ, dur);
+            Triangle(nbl, fbr, fbl, r, g, b, alpha, ignoreZ, dur);
         }
 
-        _BatchFlush();
+        
     }
 
     void SimpleFrustum(const Vector&in ntl, const Vector&in ntr,
                        const Vector&in nbl, const Vector&in nbr,
                        const Vector&in ftl, const Vector&in ftr,
                        const Vector&in fbl, const Vector&in fbr,
-                       const Color&in color, int alpha = 0, float dur = 0.05f)
+                       const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
         SimpleFrustum(ntl, ntr, nbl, nbr, ftl, ftr, fbl, fbr,
-                      color[0], color[1], color[2], alpha, dur);
+                      color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
 
@@ -1188,7 +1083,7 @@ class DebugRenderer
                  float nearDist,
                  float farDist,
                  const Vector&in farOffset,    
-                 int r, int g, int b, int alpha = 0,
+                 int r, int g, int b, int alpha = 0, bool ignoreZ = false,
                  float dur = 0.05f)
     {
         Vector forward, right, up;
@@ -1216,7 +1111,7 @@ class DebugRenderer
         Vector fbl = farCenter - up * farHeight - right * farWidth;
         Vector fbr = farCenter - up * farHeight + right * farWidth;
 
-        SimpleFrustum(ntl, ntr, nbl, nbr, ftl, ftr, fbl, fbr, r, g, b, alpha, dur);
+        SimpleFrustum(ntl, ntr, nbl, nbr, ftl, ftr, fbl, fbr, r, g, b, alpha, ignoreZ, dur);
     }
 
     void Frustum(const Vector&in origin,
@@ -1226,19 +1121,19 @@ class DebugRenderer
                  float nearDist,
                  float farDist,
                  const Vector&in farOffset,
-                 const Color&in color, int alpha = 0,
+                 const Color&in color, int alpha = 0, bool ignoreZ = false,
                  float dur = 0.05f)
     {
         Frustum(origin, angles, fov, aspectRatio, nearDist, farDist, farOffset,
-                color[0], color[1], color[2], alpha, dur);
+                color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
     void Frustum(const Vector&in origin, const QAngle&in angles,
                  float fov = 90.0f, float aspectRatio = 16.0f/9.0f,
                  float nearDist = 10.0f, float farDist = 1000.0f,
-                 int r = 100, int g = 180, int b = 255, int alpha = 0, float dur = 0.05f)
+                 int r = 100, int g = 180, int b = 255, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
-        Frustum(origin, angles, fov, aspectRatio, nearDist, farDist, Vector(0,0,0), r, g, b, alpha, dur);
+        Frustum(origin, angles, fov, aspectRatio, nearDist, farDist, Vector(0,0,0), r, g, b, alpha, ignoreZ, dur);
     }
 
 
@@ -1250,52 +1145,16 @@ class DebugRenderer
     //
     // ==============================================
 
-
-    void Cone(const Vector&in apex, const Vector&in dir, float length, float halfAngleDeg,
-              int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
-    {
-        Vector right, up;
-        Vector arb = Vector(0,0,1);
-        if (fabs(dir.z) > 0.98f) arb = Vector(1,0,0);
-        right = dir.Cross(arb).Normalized();
-        up = dir.Cross(right);
-
-        float radius = tan(halfAngleDeg * DEG2RAD) * length;
-        float step = 6.283185f / segments;
-
-        _BatchBegin();
-
-        Vector prev;
-        for (int i = 0; i <= segments; i++)
-        {
-            float a = float(i) * step;
-            Vector p = apex + dir * length + right * (cos(a) * radius) + up * (sin(a) * radius);
-
-            if (alpha <= 0)
-            {
-                if (i > 0) _bLine(prev, p, r,g,b,dur);
-                _bLine(apex, p, r,g,b,dur);
-            }
-            else
-            {
-                if (i > 0) Triangle(apex, prev, p, r,g,b,alpha,dur);
-            }
-            prev = p;
-        }
-
-        _BatchFlush();
-    }
-
     void Cone(const Vector&in eyePos, const Vector&in fwd, const Vector&in right, const Vector&in up,
               float near, float far, float halfAngleDeg,
-              int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
+              int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         // Frustum-style cone
         float rNear = tan(halfAngleDeg * DEG2RAD) * near;
         float rFar  = tan(halfAngleDeg * DEG2RAD) * far;
         float step = 6.283185f / segments;
 
-        _BatchBegin();
+         
         Vector prevN, prevF;
         bool hasPrev = false;
 
@@ -1311,45 +1170,39 @@ class DebugRenderer
             {
                 if (alpha <= 0)
                 {
-                    _bLine(prevN, cn, r,g,b,dur);
-                    _bLine(prevF, cf, r,g,b,dur);
-                    _bLine(cn, cf, r,g,b,dur);
+                    Line(prevN, cn, r,g,b,ignoreZ,dur);
+                    Line(prevF, cf, r,g,b,ignoreZ,dur);
+                    Line(cn, cf, r,g,b,ignoreZ,dur);
                 }
                 else
                 {
-                    Triangle(prevN, cn, cf, r,g,b,alpha,dur);
-                    Triangle(prevN, cf, prevF, r,g,b,alpha,dur);
+                    Triangle(prevN, cn, cf, r,g,b,alpha,ignoreZ,dur);
+                    Triangle(prevN, cf, prevF, r,g,b,alpha,ignoreZ,dur);
                 }
             }
             prevN = cn; prevF = cf; hasPrev = true;
         }
-        _BatchFlush();
-    }
-
-    void Cone(const Vector&in apex, const Vector&in dir, float length, float halfAngleDeg,
-            const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
-    {
-        Cone(apex, dir, length, halfAngleDeg, color[0], color[1], color[2], alpha, dur, segments);
+        
     }
 
     void Cone(const Vector&in eyePos, const Vector&in fwd, const Vector&in right, const Vector&in up,
               float near, float far, float halfAngleDeg,
-              const Color&in color, int alpha = 0, float dur = 0.05f, float segments = 16)
+              const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
-        Cone(eyePos, fwd, right, up, near, far, halfAngleDeg, color[0],color[1],color[2], alpha, dur, segments);
+        Cone(eyePos, fwd, right, up, near, far, halfAngleDeg, color[0],color[1],color[2], alpha, ignoreZ, dur, segments);
     }
 
     void Cone(const Vector&in eyePos, const QAngle&in angles,
           float nearDist, float farDist, float halfAngleDeg,
-          int r, int g, int b, int alpha = 0, float dur = 0.05f, float segments = 16)
+          int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         Vector fwd, right, up;
         AngleVectors(angles, fwd, right, up);
         
-        Cone(eyePos, fwd, right, up, nearDist, farDist, halfAngleDeg, r, g, b, alpha, dur, segments);
+        Cone(eyePos, fwd, right, up, nearDist, farDist, halfAngleDeg, r, g, b, alpha, ignoreZ, dur, segments);
     }
 
-
+    
 
 
     // ==============================================
@@ -1362,7 +1215,7 @@ class DebugRenderer
                 float width = 8.0f,
                 float headSize = 2.0f,
                 int r = 255, int g = 255, int b = 255,
-                float duration = 0.05f)
+                bool ignoreZ = false, float duration = 0.05f)
     {
         Vector dir = end - start;
         float length = dir.Length();
@@ -1390,40 +1243,40 @@ class DebugRenderer
         Vector p6 = shaftEnd + right * (halfWidth * 2.0f);
         Vector p7 = end;                                    
 
-        _BatchBegin();
+         
 
-        Line(p1, p2, r, g, b, duration);
-        Line(p2, p3, r, g, b, duration);
-        Line(p3, p4, r, g, b, duration);
-        Line(p4, p1, r, g, b, duration);
+        Line(p1, p2, r, g, b, ignoreZ, duration);
+        Line(p2, p3, r, g, b, ignoreZ, duration);
+        Line(p3, p4, r, g, b, ignoreZ, duration);
+        Line(p4, p1, r, g, b, ignoreZ, duration);
 
-        Line(p5, p7, r, g, b, duration);
-        Line(p6, p7, r, g, b, duration);
-        Line(p5, p6, r, g, b, duration);
+        Line(p5, p7, r, g, b, ignoreZ, duration);
+        Line(p6, p7, r, g, b, ignoreZ, duration);
+        Line(p5, p6, r, g, b, ignoreZ, duration);
 
-        _BatchFlush();
+        
     }
 
 
     void ThickArrow(const Vector&in start, const Vector&in end, float width,
-                    int r, int g, int b, float duration = 0.05f)
+                    int r, int g, int b, bool ignoreZ = false, float duration = 0.05f)
     {
-        ThickArrow(start, end, width, 2.0f, r, g, b, duration);
+        ThickArrow(start, end, width, 2.0f, r, g, b, ignoreZ, duration);
     }
 
 
     void ThickArrow(const Vector&in start, const Vector&in end, float width,
-                    const Color&in color, float duration = 0.05f)
+                    const Color&in color, bool ignoreZ = false, float duration = 0.05f)
     {
-        ThickArrow(start, end, width, color[0], color[1], color[2], duration);
+        ThickArrow(start, end, width, color[0], color[1], color[2], ignoreZ, duration);
     }
 
     void ThickArrow(const Vector&in start, const Vector&in end, 
                 float width, float headSize,
-                const Color&in color, float duration = 0.05f)
+                const Color&in color, bool ignoreZ = false, float duration = 0.05f)
     {
         ThickArrow(start, end, width, headSize, 
-                color[0], color[1], color[2], duration);
+                color[0], color[1], color[2], ignoreZ, duration);
     }
 
 
@@ -1431,7 +1284,7 @@ class DebugRenderer
                       float width = 8.0f,
                       float headSize = 2.0f,
                       int r = 255, int g = 255, int b = 255,
-                      float duration = 0.05f)
+                      bool ignoreZ = false, float duration = 0.05f)
     {
         Vector dir = end - start;
         float length = dir.Length();
@@ -1465,37 +1318,37 @@ class DebugRenderer
         Vector p9  = shaftStart - right * (halfWidth * 2.0f);
         Vector p10 = start;
 
-        _BatchBegin();
+         
 
-        Line(p1, p2, r, g, b, duration);
-        Line(p2, p3, r, g, b, duration);
-        Line(p3, p4, r, g, b, duration);
-        Line(p4, p1, r, g, b, duration);
+        Line(p1, p2, r, g, b, ignoreZ, duration);
+        Line(p2, p3, r, g, b, ignoreZ, duration);
+        Line(p3, p4, r, g, b, ignoreZ, duration);
+        Line(p4, p1, r, g, b, ignoreZ, duration);
 
-        Line(p5, p7, r, g, b, duration);
-        Line(p6, p7, r, g, b, duration);
-        Line(p5, p6, r, g, b, duration);
+        Line(p5, p7, r, g, b, ignoreZ, duration);
+        Line(p6, p7, r, g, b, ignoreZ, duration);
+        Line(p5, p6, r, g, b, ignoreZ, duration);
 
-        Line(p8, p10, r, g, b, duration);
-        Line(p9, p10, r, g, b, duration);
-        Line(p8, p9, r, g, b, duration);
+        Line(p8, p10, r, g, b, ignoreZ, duration);
+        Line(p9, p10, r, g, b, ignoreZ, duration);
+        Line(p8, p9, r, g, b, ignoreZ, duration);
 
-        _BatchFlush();
+        
     }
     
     void DoubleThickArrow(const Vector&in start, const Vector&in end, 
                         float width, float headSize,
-                        const Color&in color, float duration = 0.05f)
+                        const Color&in color, bool ignoreZ = false, float duration = 0.05f)
     {
         DoubleThickArrow(start, end, width, headSize, 
-                        color[0], color[1], color[2], duration);
+                        color[0], color[1], color[2], ignoreZ, duration);
     }
 
     void DoubleThickArrow(const Vector&in start, const Vector&in end, 
                         float width,
-                        const Color&in color, float duration = 0.05f)
+                        const Color&in color, bool ignoreZ = false, float duration = 0.05f)
     {
-        DoubleThickArrow(start, end, width, 2.0f, color, duration);
+        DoubleThickArrow(start, end, width, 2.0f, color, ignoreZ, duration);
     }
 
 
@@ -1504,7 +1357,7 @@ class DebugRenderer
                       float headSizeStart = 2.0f,
                       float headSizeEnd   = 2.0f, 
                       int r = 255, int g = 255, int b = 255,
-                      float duration = 0.05f)
+                      bool ignoreZ = false, float duration = 0.05f)
     {
         Vector dir = end - start;
         float length = dir.Length();
@@ -1518,8 +1371,8 @@ class DebugRenderer
         float halfWidth = width * 0.5f;
 
         float maxHead = length * 0.45f;
-        float headLengthStart = _min(width * headSizeStart, maxHead);
-        float headLengthEnd   = _min(width * headSizeEnd,   maxHead);
+        float headLengthStart = Internal::_min(width * headSizeStart, maxHead);
+        float headLengthEnd   = Internal::_min(width * headSizeEnd,   maxHead);
 
         Vector shaftStart = start + dir * headLengthStart;
         Vector shaftEnd   = end   - dir * headLengthEnd;
@@ -1537,30 +1390,30 @@ class DebugRenderer
         Vector p9 = shaftStart - right * (halfWidth * 2.0f);
         Vector p10 = start;
 
-        _BatchBegin();
+         
 
-        Line(p1, p2, r, g, b, duration);
-        Line(p2, p3, r, g, b, duration);
-        Line(p3, p4, r, g, b, duration);
-        Line(p4, p1, r, g, b, duration);
+        Line(p1, p2, r, g, b, ignoreZ, duration);
+        Line(p2, p3, r, g, b, ignoreZ, duration);
+        Line(p3, p4, r, g, b, ignoreZ, duration);
+        Line(p4, p1, r, g, b, ignoreZ, duration);
 
-        Line(p5, p7, r, g, b, duration);
-        Line(p6, p7, r, g, b, duration);
-        Line(p5, p6, r, g, b, duration);
+        Line(p5, p7, r, g, b, ignoreZ, duration);
+        Line(p6, p7, r, g, b, ignoreZ, duration);
+        Line(p5, p6, r, g, b, ignoreZ, duration);
 
-        Line(p8, p10, r, g, b, duration);
-        Line(p9, p10, r, g, b, duration);
-        Line(p8, p9, r, g, b, duration);
+        Line(p8, p10, r, g, b, ignoreZ, duration);
+        Line(p9, p10, r, g, b, ignoreZ, duration);
+        Line(p8, p9, r, g, b, ignoreZ, duration);
 
-        _BatchFlush();
+        
     }
 
     void DoubleThickArrow(const Vector&in start, const Vector&in end, 
                         float width, float headSizeStart, float headSizeEnd,
-                        const Color&in color, float duration = 0.05f)
+                        const Color&in color, bool ignoreZ = false, float duration = 0.05f)
     {
         DoubleThickArrow(start, end, width, headSizeStart, headSizeEnd,
-                        color[0], color[1], color[2], duration);
+                        color[0], color[1], color[2], ignoreZ, duration);
     }
 
 
@@ -1579,6 +1432,7 @@ class DebugRenderer
            float minorRadius,
            int r, int g, int b, 
            int alpha = 0,
+           bool ignoreZ = false,
            float dur = 0.05f, 
            float segments = 24,
            float sides = 12)
@@ -1596,7 +1450,7 @@ class DebugRenderer
         float majorStep = 6.283185f / segments;
         float minorStep = 6.283185f / sides;
 
-        _BatchBegin();
+         
 
         for (int i = 0; i < segments; i++)
         {
@@ -1624,27 +1478,27 @@ class DebugRenderer
 
                 if (alpha <= 0)
                 {
-                    _bLine(p1, p2, r, g, b, dur);
-                    _bLine(p2, p3, r, g, b, dur);
+                    Line(p1, p2, r, g, b, ignoreZ, dur);
+                    Line(p2, p3, r, g, b, ignoreZ, dur);
                 }
                 else
                 {
-                    Triangle(p1, p2, p3, r, g, b, alpha, dur);
-                    Triangle(p1, p3, p4, r, g, b, alpha, dur);
+                    Triangle(p1, p2, p3, r, g, b, alpha, ignoreZ, dur);
+                    Triangle(p1, p3, p4, r, g, b, alpha, ignoreZ, dur);
                 }
             }
         }
 
-        _BatchFlush();
+        
     }
 
     void Torus(const Vector&in center, const Vector&in normal,
             float majorRadius, float minorRadius,
-            const Color&in color, int alpha = 0,
+            const Color&in color, int alpha = 0, bool ignoreZ = false,
             float dur = 0.05f, float segments = 24, float sides = 12)
     {
         Torus(center, normal, majorRadius, minorRadius,
-            color[0], color[1], color[2], alpha, dur, segments, sides);
+            color[0], color[1], color[2], alpha, ignoreZ, dur, segments, sides);
     }
 
 
@@ -1661,7 +1515,7 @@ class DebugRenderer
            float length, float radius,
            float turns,
            int r, int g, int b,
-           float dur = 0.05f, float segments = 64)
+           bool ignoreZ = false, float dur = 0.05f, float segments = 64)
     {
         if (length <= 0 || radius <= 0) return;
 
@@ -1678,7 +1532,7 @@ class DebugRenderer
 
         Vector prev = start;
 
-        _BatchBegin();
+         
 
         for (int i = 1; i <= segments; i++)
         {
@@ -1689,21 +1543,21 @@ class DebugRenderer
             Vector current = start + forward * h + offset;
 
 
-            _bLine(prev, current, r, g, b, dur);
+            Line(prev, current, r, g, b, ignoreZ, dur);
             
 
             prev = current;
         }
 
-        _BatchFlush();
+        
     }
 
     void Helix(const Vector&in start, const Vector&in dir,
             float length, float radius, float turns,
             const Color&in color,
-            float dur = 0.05f, float segments = 64)
+            bool ignoreZ = false, float dur = 0.05f, float segments = 64)
     {
-        Helix(start, dir, length, radius, turns, color[0], color[1], color[2], dur, segments);
+        Helix(start, dir, length, radius, turns, color[0], color[1], color[2], ignoreZ, dur, segments);
     }
 
 
@@ -1716,12 +1570,6 @@ class DebugRenderer
     // ==============================================
 
 
-    private float SafeAcos(float dot)
-    {
-        if (dot > 1.0f) dot = 1.0f;
-        if (dot < -1.0f) dot = -1.0f;
-        return acos(dot);
-    }
 
     void Angle(const Vector&in center,
             const Vector&in normal,
@@ -1729,18 +1577,19 @@ class DebugRenderer
             const Vector&in dir2,
             float radius,
             int r, int g, int b, int alpha = 0,
+            bool ignoreZ = false,
             float dur = 0.05f, float segments = 24)
     {
         Vector n  = normal.Normalized();
         Vector d1 = dir1.Normalized();
         Vector d2 = dir2.Normalized();
 
-        float angleDeg = SafeAcos(d1.Dot(d2)) * RAD2DEG;
+        float angleDeg = Internal::SafeAcos(d1.Dot(d2)) * RAD2DEG;
 
-        Arc(center, n, d1, radius, angleDeg, r, g, b, alpha, dur, segments);
-        Line(center, center + d1 * radius * 1.15f, r, g, b, dur);
-        Line(center, center + d2 * radius * 1.15f, r, g, b, dur);
-        Text(center + n * 2.0f + Vector(0, 0, 10), "Angle: " + angleDeg, dur);
+        Arc(center, n, d1, radius, angleDeg, r, g, b, alpha, ignoreZ, dur, segments);
+        Line(center, center + d1 * radius * 1.15f, r, g, b, ignoreZ, dur);
+        Line(center, center + d2 * radius * 1.15f, r, g, b, ignoreZ, dur);
+        Text(center + n * 2.0f + Vector(0, 0, 10), "Angle: " + angleDeg, ignoreZ, dur);
     }
 
     void Angle(const Vector&in center,
@@ -1749,10 +1598,11 @@ class DebugRenderer
             const Vector&in dir2,
             float radius,
             const Color&in color, int alpha = 0,
+            bool ignoreZ = false,
             float dur = 0.05f, float segments = 24)
     {
         Angle(center, normal, dir1, dir2, radius,
-            color[0], color[1], color[2], alpha, dur, segments);
+            color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
     void Angle(const Vector&in center,
@@ -1760,7 +1610,7 @@ class DebugRenderer
             const Vector&in point2,
             float radius = 20.0f,
             int r = 255, int g = 200, int b = 100, int alpha = 0,
-            float dur = 0.1f, float segments = 24)
+            bool ignoreZ = false, float dur = 0.1f, float segments = 24)
     {
         Vector d1 = (point1 - center).Normalized();
         Vector d2 = (point2 - center).Normalized();
@@ -1768,12 +1618,12 @@ class DebugRenderer
         Vector normal = d1.Cross(d2);
         normal = (normal.Length() < 0.001f) ? Vector(0, 0, 1) : normal.Normalized();
 
-        float angleDeg = SafeAcos(d1.Dot(d2)) * RAD2DEG;
+        float angleDeg = Internal::SafeAcos(d1.Dot(d2)) * RAD2DEG;
 
-        Arc(center, normal, d1, radius, angleDeg, r, g, b, alpha, dur, segments);
-        Line(center, center + d1 * radius * 1.2f, r, g, b, dur);
-        Line(center, center + d2 * radius * 1.2f, r, g, b, dur);
-        Text(center + normal * (radius * 0.6f), "Angle: " + angleDeg, dur);
+        Arc(center, normal, d1, radius, angleDeg, r, g, b, alpha, ignoreZ, dur, segments);
+        Line(center, center + d1 * radius * 1.2f, r, g, b, ignoreZ, dur);
+        Line(center, center + d2 * radius * 1.2f, r, g, b, ignoreZ, dur);
+        Text(center + normal * (radius * 0.6f), "Angle: " + angleDeg, ignoreZ, dur);
     }
 
     void Angle(const Vector&in center,
@@ -1781,10 +1631,11 @@ class DebugRenderer
             const Vector&in point2,
             const Color&in color,
             float radius = 20.0f,
+            bool ignoreZ = false, int alpha = 0,
             float dur = 0.1f, float segments = 24)
     {
         Angle(center, point1, point2, radius,
-            color[0], color[1], color[2], 0, dur, segments);
+            color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
 
@@ -1800,7 +1651,7 @@ class DebugRenderer
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
                 float rotDeg,
-                int r, int g, int b, int alpha = 0, float dur = 0.05f)
+                int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
         Vector up = dir.Normalized();
 
@@ -1827,60 +1678,60 @@ class DebugRenderer
 
         Vector apex = origin + up * h;
 
-        _BatchBegin();
+         
 
         if (alpha <= 0)
         {
-            _bLine(b0, b1, r, g, b, dur);
-            _bLine(b1, b2, r, g, b, dur);
-            _bLine(b2, b3, r, g, b, dur);
-            _bLine(b3, b0, r, g, b, dur);
+            Line(b0, b1, r, g, b, ignoreZ, dur);
+            Line(b1, b2, r, g, b, ignoreZ, dur);
+            Line(b2, b3, r, g, b, ignoreZ, dur);
+            Line(b3, b0, r, g, b, ignoreZ, dur);
 
-            _bLine(b0, apex, r, g, b, dur);
-            _bLine(b1, apex, r, g, b, dur);
-            _bLine(b2, apex, r, g, b, dur);
-            _bLine(b3, apex, r, g, b, dur);
+            Line(b0, apex, r, g, b, ignoreZ, dur);
+            Line(b1, apex, r, g, b, ignoreZ, dur);
+            Line(b2, apex, r, g, b, ignoreZ, dur);
+            Line(b3, apex, r, g, b, ignoreZ, dur);
         }
         else
         {
-            TriangleInv(b0, b1, b2, r, g, b, alpha, dur);
-            TriangleInv(b0, b2, b3, r, g, b, alpha, dur);
+            TriangleInv(b0, b1, b2, r, g, b, alpha, ignoreZ, dur);
+            TriangleInv(b0, b2, b3, r, g, b, alpha, ignoreZ, dur);
 
-            Triangle(b0, b1, apex, r, g, b, alpha, dur);
-            Triangle(b1, b2, apex, r, g, b, alpha, dur);
-            Triangle(b2, b3, apex, r, g, b, alpha, dur);
-            Triangle(b3, b0, apex, r, g, b, alpha, dur);
+            Triangle(b0, b1, apex, r, g, b, alpha, ignoreZ, dur);
+            Triangle(b1, b2, apex, r, g, b, alpha, ignoreZ, dur);
+            Triangle(b2, b3, apex, r, g, b, alpha, ignoreZ, dur);
+            Triangle(b3, b0, apex, r, g, b, alpha, ignoreZ, dur);
         }
 
-        _BatchFlush();
+        
     }
 
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
                 float rotDeg,
-                const Color&in color, int alpha = 0, float dur = 0.05f)
+                const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
-        Pyramid(origin, dir, size, rotDeg, color[0], color[1], color[2], alpha, dur);
+        Pyramid(origin, dir, size, rotDeg, color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
-                int r, int g, int b, int alpha = 0, float dur = 0.05f)
+                int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
-        Pyramid(origin, dir, size, 0.0f, r, g, b, alpha, dur);
+        Pyramid(origin, dir, size, 0.0f, r, g, b, alpha, ignoreZ, dur);
     }
 
     void Pyramid(const Vector&in origin, const Vector&in dir,
                 const Vector&in size,
-                const Color&in color, int alpha = 0, float dur = 0.05f)
+                const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
-        Pyramid(origin, dir, size, 0.0f, color[0], color[1], color[2], alpha, dur);
+        Pyramid(origin, dir, size, 0.0f, color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
 
     void Tetrahedron(const Vector&in center, const Vector&in dir,
                     float radius,
-                    int r, int g, int b, int alpha = 0, float dur = 0.05f)
+                    int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
         Vector up = dir.Normalized();
 
@@ -1900,35 +1751,35 @@ class DebugRenderer
         Vector v1 = center + up * baseH + right   * (baseR * -0.5f) + forward * (baseR *  0.8660f);
         Vector v2 = center + up * baseH + right   * (baseR * -0.5f) + forward * (baseR * -0.8660f);
 
-        _BatchBegin();
+         
 
         if (alpha <= 0)
         {
-            _bLine(v0, v1,   r, g, b, dur);
-            _bLine(v1, v2,   r, g, b, dur);
-            _bLine(v2, v0,   r, g, b, dur);
+            Line(v0, v1,   r, g, b, ignoreZ, dur);
+            Line(v1, v2,   r, g, b, ignoreZ, dur);
+            Line(v2, v0,   r, g, b, ignoreZ, dur);
 
-            _bLine(v0, apex, r, g, b, dur);
-            _bLine(v1, apex, r, g, b, dur);
-            _bLine(v2, apex, r, g, b, dur);
+            Line(v0, apex, r, g, b, ignoreZ, dur);
+            Line(v1, apex, r, g, b, ignoreZ, dur);
+            Line(v2, apex, r, g, b, ignoreZ, dur);
         }
         else
         {
-            TriangleInv(v0, v1, v2, r, g, b, alpha, dur);
+            TriangleInv(v0, v1, v2, r, g, b, alpha, ignoreZ, dur);
 
-            Triangle(v0, v1, apex, r, g, b, alpha, dur);
-            Triangle(v1, v2, apex, r, g, b, alpha, dur);
-            Triangle(v2, v0, apex, r, g, b, alpha, dur);
+            Triangle(v0, v1, apex, r, g, b, alpha, ignoreZ, dur);
+            Triangle(v1, v2, apex, r, g, b, alpha, ignoreZ, dur);
+            Triangle(v2, v0, apex, r, g, b, alpha, ignoreZ, dur);
         }
 
-        _BatchFlush();
+        
     }
 
     void Tetrahedron(const Vector&in center, const Vector&in dir,
                     float radius,
-                    const Color&in color, int alpha = 0, float dur = 0.05f)
+                    const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
-        Tetrahedron(center, dir, radius, color[0], color[1], color[2], alpha, dur);
+        Tetrahedron(center, dir, radius, color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
 
@@ -1944,7 +1795,7 @@ class DebugRenderer
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
             float rotDeg,
-            int r, int g, int b, int alpha = 0, float dur = 0.05f)
+            int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
         Vector fwd = dir.Normalized();
 
@@ -1976,70 +1827,70 @@ class DebugRenderer
         Vector e1 = origin + fwd * length + t1;
         Vector e2 = origin + fwd * length + t2;
 
-        _BatchBegin();
+         
 
         if (alpha <= 0)
         {
-            _bLine(s0, s1, r, g, b, dur);
-            _bLine(s1, s2, r, g, b, dur);
-            _bLine(s2, s0, r, g, b, dur);
+            Line(s0, s1, r, g, b, ignoreZ, dur);
+            Line(s1, s2, r, g, b, ignoreZ, dur);
+            Line(s2, s0, r, g, b, ignoreZ, dur);
 
-            _bLine(e0, e1, r, g, b, dur);
-            _bLine(e1, e2, r, g, b, dur);
-            _bLine(e2, e0, r, g, b, dur);
+            Line(e0, e1, r, g, b, ignoreZ, dur);
+            Line(e1, e2, r, g, b, ignoreZ, dur);
+            Line(e2, e0, r, g, b, ignoreZ, dur);
 
-            _bLine(s0, e0, r, g, b, dur);
-            _bLine(s1, e1, r, g, b, dur);
-            _bLine(s2, e2, r, g, b, dur);
+            Line(s0, e0, r, g, b, ignoreZ, dur);
+            Line(s1, e1, r, g, b, ignoreZ, dur);
+            Line(s2, e2, r, g, b, ignoreZ, dur);
         }
         else
         {
-            TriangleInv(s0, s1, s2, r, g, b, alpha, dur);
+            TriangleInv(s0, s1, s2, r, g, b, alpha, ignoreZ, dur);
 
-            Triangle(e0, e1, e2, r, g, b, alpha, dur);
+            Triangle(e0, e1, e2, r, g, b, alpha, ignoreZ, dur);
 
-            TriangleInv(s0, s1, e1, r, g, b, alpha, dur);
-            TriangleInv(s0, e1, e0, r, g, b, alpha, dur);
+            TriangleInv(s0, s1, e1, r, g, b, alpha, ignoreZ, dur);
+            TriangleInv(s0, e1, e0, r, g, b, alpha, ignoreZ, dur);
 
-            Triangle(s1, s2, e2, r, g, b, alpha, dur);
-            Triangle(s1, e2, e1, r, g, b, alpha, dur);
+            Triangle(s1, s2, e2, r, g, b, alpha, ignoreZ, dur);
+            Triangle(s1, e2, e1, r, g, b, alpha, ignoreZ, dur);
 
-            TriangleInv(s2, s0, e0, r, g, b, alpha, dur);
-            TriangleInv(s2, e0, e2, r, g, b, alpha, dur);
+            TriangleInv(s2, s0, e0, r, g, b, alpha, ignoreZ, dur);
+            TriangleInv(s2, e0, e2, r, g, b, alpha, ignoreZ, dur);
         }
 
-        _BatchFlush();
+        
     }
 
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
             float rotDeg,
-            const Color&in color, int alpha = 0, float dur = 0.05f)
+            const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
         Prism(origin, dir, length, size, rotDeg,
-            color[0], color[1], color[2], alpha, dur);
+            color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
-            int r, int g, int b, int alpha = 0, float dur = 0.05f)
+            int r, int g, int b, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
-        Prism(origin, dir, length, size, 0.0f, r, g, b, alpha, dur);
+        Prism(origin, dir, length, size, 0.0f, r, g, b, alpha, ignoreZ, dur);
     }
 
     void Prism(const Vector&in origin, const Vector&in dir,
             float length, const Vector&in size,
-            const Color&in color, int alpha = 0, float dur = 0.05f)
+            const Color&in color, int alpha = 0, bool ignoreZ = false, float dur = 0.05f)
     {
         Prism(origin, dir, length, size, 0.0f,
-            color[0], color[1], color[2], alpha, dur);
+            color[0], color[1], color[2], alpha, ignoreZ, dur);
     }
 
 
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float innerRadius,
             int r, int g, int b, int alpha = 0,
-            float dur = 0.05f, float segments = 16)
+            bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         if (outerRadius <= 0.0f) return;
         if (innerRadius < 0.0f)  innerRadius = 0.0f;
@@ -2059,7 +1910,7 @@ class DebugRenderer
 
         float step = 6.283185f / segments;
 
-        _BatchBegin();
+         
 
         Vector prevSO, prevEO;   // outer start/end
         Vector prevSI, prevEI;   // inner start/end
@@ -2082,30 +1933,30 @@ class DebugRenderer
             {
                 if (alpha <= 0)
                 {
-                    _bLine(prevSO, sO, r, g, b, dur);
-                    _bLine(prevEO, eO, r, g, b, dur);
-                    _bLine(sO, eO,    r, g, b, dur);
+                    Line(prevSO, sO, r, g, b, ignoreZ, dur);
+                    Line(prevEO, eO, r, g, b, ignoreZ, dur);
+                    Line(sO, eO,    r, g, b, ignoreZ, dur);
 
-                    _bLine(prevSI, sI, r, g, b, dur);
-                    _bLine(prevEI, eI, r, g, b, dur);
-                    _bLine(sI, eI,    r, g, b, dur);
+                    Line(prevSI, sI, r, g, b, ignoreZ, dur);
+                    Line(prevEI, eI, r, g, b, ignoreZ, dur);
+                    Line(sI, eI,    r, g, b, ignoreZ, dur);
 
-                    _bLine(prevSO, prevSI, r, g, b, dur);
-                    _bLine(prevEO, prevEI, r, g, b, dur);
+                    Line(prevSO, prevSI, r, g, b, ignoreZ, dur);
+                    Line(prevEO, prevEI, r, g, b, ignoreZ, dur);
                 }
                 else
                 {
-                    TriangleInv(prevSO, sO, eO,    r, g, b, alpha, dur);
-                    TriangleInv(prevSO, eO, prevEO, r, g, b, alpha, dur);
+                    TriangleInv(prevSO, sO, eO,    r, g, b, alpha, ignoreZ, dur);
+                    TriangleInv(prevSO, eO, prevEO, r, g, b, alpha, ignoreZ, dur);
 
-                    Triangle(prevSI, sI, eI,    r, g, b, alpha, dur);
-                    Triangle(prevSI, eI, prevEI, r, g, b, alpha, dur);
+                    Triangle(prevSI, sI, eI,    r, g, b, alpha, ignoreZ, dur);
+                    Triangle(prevSI, eI, prevEI, r, g, b, alpha, ignoreZ, dur);
 
-                    TriangleInv(prevSO, sO, sI,    r, g, b, alpha, dur);
-                    TriangleInv(prevSO, sI, prevSI, r, g, b, alpha, dur);
+                    TriangleInv(prevSO, sO, sI,    r, g, b, alpha, ignoreZ, dur);
+                    TriangleInv(prevSO, sI, prevSI, r, g, b, alpha, ignoreZ, dur);
 
-                    Triangle(prevEO, eO, eI,    r, g, b, alpha, dur);
-                    Triangle(prevEO, eI, prevEI, r, g, b, alpha, dur);
+                    Triangle(prevEO, eO, eI,    r, g, b, alpha, ignoreZ, dur);
+                    Triangle(prevEO, eI, prevEI, r, g, b, alpha, ignoreZ, dur);
                 }
             }
 
@@ -2114,39 +1965,39 @@ class DebugRenderer
             hasPrev = true;
         }
 
-        _BatchFlush();
+        
     }
 
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float innerRadius,
             const Color&in color, int alpha = 0,
-            float dur = 0.05f, float segments = 16)
+            bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         Tube(start, end, outerRadius, innerRadius,
-            color[0], color[1], color[2], alpha, dur, segments);
+            color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float wallThickness,
             bool useThickness,
             int r, int g, int b, int alpha = 0,
-            float dur = 0.05f, float segments = 16)
+            bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         float inner = useThickness
-            ? _max(0.0f, outerRadius - wallThickness)
+            ? Internal::_max(0.0f, outerRadius - wallThickness)
             : wallThickness;
 
-        Tube(start, end, outerRadius, inner, r, g, b, alpha, dur, segments);
+        Tube(start, end, outerRadius, inner, r, g, b, alpha, ignoreZ, dur, segments);
     }
 
     void Tube(const Vector&in start, const Vector&in end,
             float outerRadius, float wallThickness,
             bool useThickness,
             const Color&in color, int alpha = 0,
-            float dur = 0.05f, float segments = 16)
+            bool ignoreZ = false, float dur = 0.05f, float segments = 16)
     {
         Tube(start, end, outerRadius, wallThickness, useThickness,
-            color[0], color[1], color[2], alpha, dur, segments);
+            color[0], color[1], color[2], alpha, ignoreZ, dur, segments);
     }
 
 
@@ -2169,7 +2020,8 @@ class DebugRenderer
 
     void VelocityArrow(const Vector&in origin, const Vector&in velocity,
                     float scale = 1.0f,
-                    int r = 80, int g = 200, int b = 80,
+                    int r = 80, int g = 200, int b = 80, 
+                    bool ignoreZ = false, bool viewcheck = false,
                     float dur = 0.05f, float headSize = 6.0f)
     {
         float speed = velocity.Length();
@@ -2177,18 +2029,19 @@ class DebugRenderer
 
         Vector tip = origin + velocity * scale;
 
-        Arrow(origin, tip, r, g, b, dur, headSize);
+        Arrow(origin, tip, r, g, b, ignoreZ, dur, headSize);
 
-        Text(tip + Vector(0, 0, 8), "v: " + _truncf(speed), dur);
+        Text(tip + Vector(0, 0, 8), "v: " + Internal::_truncf(speed), viewcheck, dur);
     }
 
     void VelocityArrow(const Vector&in origin, const Vector&in velocity,
                     float scale,
                     const Color&in color,
+                    bool ignoreZ = false, bool viewcheck = false,
                     float dur = 0.05f, float headSize = 6.0f)
     {
         VelocityArrow(origin, velocity, scale,
-                    color[0], color[1], color[2], dur, headSize);
+                    color[0], color[1], color[2], ignoreZ, viewcheck, dur, headSize);
     }
 
 
@@ -2202,7 +2055,8 @@ class DebugRenderer
 
     void AccelerationArrow(const Vector&in origin, const Vector&in acceleration,
                         float scale = 1.0f,
-                        int r = 255, int g = 140, int b = 0,
+                        int r = 255, int g = 140, int b = 0, 
+                        bool ignoreZ = false, bool viewcheck = false,
                         float dur = 0.05f, float headSize = 6.0f)
     {
         float mag = acceleration.Length();
@@ -2210,18 +2064,19 @@ class DebugRenderer
 
         Vector tip = origin + acceleration * scale;
 
-        Arrow(origin, tip, r, g, b, dur, headSize);
+        Arrow(origin, tip, r, g, b, ignoreZ, dur, headSize);
 
-        Text(tip + Vector(0, 0, 8), "a: " + _truncf(mag), dur);
+        Text(tip + Vector(0, 0, 8), "a: " + Internal::_truncf(mag), viewcheck, dur);
     }
 
     void AccelerationArrow(const Vector&in origin, const Vector&in acceleration,
                         float scale,
                         const Color&in color,
+                        bool ignoreZ = false, bool viewcheck = false,
                         float dur = 0.05f, float headSize = 6.0f)
     {
         AccelerationArrow(origin, acceleration, scale,
-                        color[0], color[1], color[2], dur, headSize);
+                        color[0], color[1], color[2], ignoreZ, viewcheck, dur, headSize);
     }
 
 
@@ -2230,7 +2085,7 @@ class DebugRenderer
     //
     //  Plots both vectors together — velocity in green,
     //  acceleration in orange, plus the projection of the acceleration
-    //  onto the velocity as a dotted line
+    //  onto the velocity as a dotted Line
     // ----------------------------------------------
 
     void VelocityAccelerationArrows(const Vector&in origin,
@@ -2238,16 +2093,18 @@ class DebugRenderer
                                     const Vector&in acceleration,
                                     float velScale = 1.0f,
                                     float accScale = 1.0f,
+                                    bool ignoreZ = false,
+                                    bool viewcheck = false,
                                     float dur = 0.05f)
     {
         float speed = velocity.Length();
         float accMag = acceleration.Length();
 
         VelocityArrow(origin, velocity, velScale,
-                    DebugRendererColors::GREEN, dur);
+                    DebugRendererColors::GREEN, ignoreZ, viewcheck, dur);
 
         AccelerationArrow(origin, acceleration, accScale,
-                        DebugRendererColors::ORANGE, dur);
+                        DebugRendererColors::ORANGE, ignoreZ, viewcheck, dur);
 
         if (speed > 0.001f && accMag > 0.001f)
         {
@@ -2259,32 +2116,36 @@ class DebugRenderer
             Vector tipTan  = origin + aTan  * accScale;
             Vector tipNorm = origin + aNorm * accScale;
 
-            _DrawDashedLine(origin, tipTan,
+            DrawDashedLine(origin, tipTan,
                             DebugRendererColors::YELLOW[0],
                             DebugRendererColors::YELLOW[1],
-                            DebugRendererColors::YELLOW[2], dur);
+                            DebugRendererColors::YELLOW[2], 
+                            ignoreZ,
+                            dur);
 
-            _DrawDashedLine(origin, tipNorm,
+            DrawDashedLine(origin, tipNorm,
                             DebugRendererColors::CYAN[0],
                             DebugRendererColors::CYAN[1],
-                            DebugRendererColors::CYAN[2], dur);
+                            DebugRendererColors::CYAN[2], 
+                            ignoreZ,
+                            dur);
 
-            Text(tipTan  + Vector(0,0,8), "a_tan: "  + _truncf(proj),        dur);
-            Text(tipNorm + Vector(0,0,8), "a_norm: " + _truncf(aNorm.Length()), dur);
+            Text(tipTan  + Vector(0,0,8), "a_tan: "  + Internal::_truncf(proj), viewcheck,        dur);
+            Text(tipNorm + Vector(0,0,8), "a_norm: " + Internal::_truncf(aNorm.Length()), viewcheck, dur);
         }
 
         Text(origin + Vector(0, 0, 20),
-            "spd=" + _truncf(speed) + " acc=" + _truncf(accMag), dur);
+            "spd=" + Internal::_truncf(speed) + " acc=" + Internal::_truncf(accMag), viewcheck, dur);
     }
 
 
     // ----------------------------------------------
-    //  Guideline
+    //  Guidedebug::Line
     // ----------------------------------------------
 
-    void _DrawDashedLine(const Vector&in from, const Vector&in to,
-                                int r, int g, int b,
-                                float dur = 0.05f,
+    void DrawDashedLine(const Vector&in from, const Vector&in to,
+                                int r, int g, int b, bool ignoreZ = false,
+                                float dur = 0.05f, 
                                 float dashLen = 6.0f, float gapLen = 4.0f)
     {
         Vector dir = to - from;
@@ -2295,213 +2156,28 @@ class DebugRenderer
         float t = 0.0f;
         bool  drawing = true;
 
-        _BatchBegin();
+         
 
         while (t < total)
         {
             float segLen = drawing ? dashLen : gapLen;
-            float tEnd   = _min(t + segLen, total);
+            float tEnd   = Internal::_min(t + segLen, total);
 
             if (drawing)
-                _bLine(from + dir * t, from + dir * tEnd, r, g, b, dur);
+                Line(from + dir * t, from + dir * tEnd, r, g, b, ignoreZ, dur);
 
             t       = tEnd;
             drawing = !drawing;
         }
 
-        _BatchFlush();
+        
     }
 
-    void _DrawDashedLine(const Vector&in from, const Vector&in to,
-                        const Color&in color,
-                        float dur = 0.05f,
+    void DrawDashedLine(const Vector&in from, const Vector&in to,
+                        const Color&in color, bool ignoreZ = false,
+                        float dur = 0.05f, 
                         float dashLen = 6.0f, float gapLen = 4.0f)
     {
-        _DrawDashedLine(from, to, color[0], color[1], color[2], dur, dashLen, gapLen);
-    }
-
-
-
-
-    // ==============================================
-    //
-    //  BASIS
-    //
-    // ==============================================
-
-
-    // ----------------------------------------------
-    //  Transform – three axes
-    // ----------------------------------------------
-
-    // Plots the X/Y/Z axes from the origin using the basis vectors
-    void Basis(const Vector&in origin,
-               const Vector&in fwd, const Vector&in right, const Vector&in up,
-               float scale = 20.0f, float dur = 0.05f)
-    {
-        _BatchBegin();
-        _bLine(origin, origin + fwd   * scale, DebugRendererColors::AXIS_X[0], DebugRendererColors::AXIS_X[1], DebugRendererColors::AXIS_X[2], dur);
-        _bLine(origin, origin + right * scale, DebugRendererColors::AXIS_Y[0], DebugRendererColors::AXIS_Y[1], DebugRendererColors::AXIS_Y[2], dur);
-        _bLine(origin, origin + up    * scale, DebugRendererColors::AXIS_Z[0], DebugRendererColors::AXIS_Z[1], DebugRendererColors::AXIS_Z[2], dur);
-        _BatchFlush();
-    }
-
-    // Overloading for QAngle — it will break it down into vectors itself
-    void Basis(const Vector&in origin, const QAngle&in angles,
-               float scale = 20.0f, float dur = 0.05f)
-    {
-        Vector fwd, right, up;
-        AngleVectors(angles, fwd, right, up);
-        Basis(origin, fwd, right, up, scale, dur);
-    }
-
-
-
-    
-    // ==============================================
-    //
-    //  TEXT
-    //
-    // ==============================================
-
-
-    void Text(const Vector&in pos, const string&in text, float dur = 0.05f)
-    {
-        _exec("DebugDrawText(" + _v(pos) + ",\"" + _escape(text) + "\",false," + dur + ")");
-    }
-
-
-    void ScreenText(float x, float y, const string&in text,
-                    int r = 255, int g = 255, int b = 255, int a = 255,
-                    float dur = 0.05f)
-    {
-        _exec("DebugDrawScreenText(" + x + "," + y + ",\"" + 
-            _escape(text) + "\"," + r + "," + g + "," + b + "," + a + "," + dur + ")");
-    }
-
-
-    void EntityText(int entityID, int textOffset, const string&in text,
-                    float dur = 0.05f, int r = 255, int g = 255, int b = 255, int a = 255)
-    {
-        _exec("DebugDrawEntityText(" + entityID + "," + textOffset + ",\"" + 
-            _escape(text) + "\"," + dur + "," + r + "," + g + "," + b + "," + a + ")");
-    }
-
-    void EntityTextAtPos(const Vector&in pos, int textOffset, const string&in text,
-                        float dur = 0.05f, int r = 255, int g = 255, int b = 255, int a = 255)
-    {
-        _exec("DebugDrawEntityTextAtPosition(" + _v(pos) + "," + textOffset + ",\"" + 
-            _escape(text) + "\"," + dur + "," + r + "," + g + "," + b + "," + a + ")");
-    }
-
-
-    void TextFloat(const Vector&in pos, const string&in label, float value, float dur = 0.05f)
-    {
-        Text(pos, label + ": " + _truncf(value), dur);
-    }
-
-    void TextInt(const Vector&in pos, const string&in label, int value, float dur = 0.05f)
-    {
-        Text(pos, label + ": " + value, dur);
-    }
-
-    void TextVec(const Vector&in pos, const string&in label, const Vector&in value, float dur = 0.05f)
-    {
-        Text(pos, label + ": (" + _truncf(value.x) + ", " + 
-                        _truncf(value.y) + ", " + 
-                        _truncf(value.z) + ")", dur);
-    }
-
-
-
-
-    // ==============================================
-    //
-    // 
-    //
-    // ==============================================
-
-
-    // ----------------------------------------------
-    //  Batch system
-    // ----------------------------------------------
-
-    private string m_batch = "";
-
-    void _BatchBegin()  { m_batch = ""; }
-
-    void _bLine(const Vector&in a, const Vector&in b,
-                int r, int g, int bv, float dur)
-    {
-        m_batch += "DebugDrawLine(" +
-                   _v(a) + "," + _v(b) + "," +
-                   r + "," + g + "," + bv + ",false," + dur + ");";
-    }
-
-    void _BatchFlush()
-    {
-        if (m_batch.length() > 0)
-        {
-            _exec(m_batch);
-            m_batch = "";
-        }
-    }
-
-
-    // ----------------------------------------------
-    //  Internal utilities
-    // ----------------------------------------------
-
-    private float _max(float a, float b)
-    {
-        return (a > b) ? a : b;
-    }
-
-    private int _max(int a, int b)
-    {
-        return (a > b) ? a : b;
-    }
-
-    private float _min(float a, float b)
-    {
-        return (a < b) ? a : b;
-    }
-
-    private int _min(int a, int b)
-    {
-        return (a < b) ? a : b;
-    }
-
-    private string _v(const Vector&in v) const
-    {
-        return "Vector(" + v.x + "," + v.y + "," + v.z + ")";
-    }
-
-    private string _v(const QAngle&in a)
-    {
-        return "Vector(" + a.x + "," + a.y + "," + a.z + ")";
-    }
-
-    // Truncates float to 2 decimal places for readable text
-    private string _truncf(float f) const
-    {
-        int i  = int(f);
-        int fr = int(abs(f - float(i)) * 100.0f);
-        return i + "." + (fr < 10 ? "0" : "") + fr;
-    }
-
-    // Escapes quotes in a string to prevent breaking RunScriptCode
-    private string _escape(const string&in s) const
-    {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
-
-    }
-
-    private void _exec(const string&in code)
-    {
-        if (m_logic is null) return;
-
-        m_variant.SetString(code);
-        m_logic.FireInput("RunScriptCode", m_variant, 0.0f, null, m_owner);
+        DrawDashedLine(from, to, color[0], color[1], color[2], ignoreZ, dur, dashLen, gapLen);
     }
 }

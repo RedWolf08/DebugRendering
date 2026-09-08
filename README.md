@@ -1,42 +1,25 @@
 # DebugRenderer
 
-A utility for visually debugging Angel Script logic in Portal 2 Community Edition.
-
-It allows you to quickly draw any basic shapes in the world: lines, arrows, geometric shapes, text, paths, frustums, and etc.
+A utility for Advanced visually debugging Angel Script logic in Portal 2 Community Edition.
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d0844428-a57b-410a-9dd0-413567d33c8c" />
 
 ## Possibilities
 
 ### Basic primitives
-- `Line`, `Cross`, `Box`, `OBox`, `Grid`
-- `Plane`, `PlaneWire`, `PlaneSolid`
-- `Circle`, `Arc`, `ArcBetween`, `Disk`
-- `Sphere`, `Hemisphere`, `CappedHemisphere`
-- `Cylinder`, `CappedCylinder`, `Capsule`, `CapsuleHemi`
-- `Cone`, `Tube`, `Torus`, `Helix`
+- `OBox`,
+- `PlaneWire`, `PlaneSolid`
+- `Arc`, `ArcBetween`, `Disk`
+- `Hemisphere`, `CappedHemisphere`
+- `Cylinder`, `CappedCylinder`, `CapsuleHemi`
+- `Tube`, `Torus`, `Helix`
 - `Pyramid`, `Tetrahedron`, `Prism`
 - `Frustum` / `SimpleFrustum`
 
 ### Arrows and vectors
 - `Arrow`, `DoubleArrow`, `ThickArrow`, `DoubleThickArrow`
 - `VelocityArrow`, `AccelerationArrow`, `VelocityAccelerationArrows`
-- `Basis` (coordinate axes)
 
-### Text
-- `Text()` — in the world
-- `ScreenText()` — on screen
-- `EntityText()` / `EntityTextAtPos()`
-- Support for `TextFloat`, `TextInt`, `TextVec`
-
-### Additional Features
-- Support for solid (filled shapes) and wireframe modes.
-- Convenient colors in `DebugRendererColors`.
-- Extensible.
-
-### Technical Info
-- The utility calls functions from VScript because VScript supports native rendering.
-- All computations are performed on the Angel Script side.
 
 ## Installation and Use
 
@@ -48,24 +31,14 @@ It allows you to quickly draw any basic shapes in the world: lines, arrows, geom
 
 class CMyEntity : CBaseEntity
 {
-    DebugRenderer@ m_dbg;
 
     void Spawn()
     {
-        @m_dbg = DebugRenderer(self);
-        m_dbg.Init();
     }
 
     void Think()
     {
-        if (m_dbg.IsValid())
-        {
-            Vector pos = self.GetOrigin();
-            m_dbg.Arrow(pos, pos + Vector(0, 100, 50), DebugRendererColors::RED);
-            m_dbg.Sphere(pos + Vector(0, 0, 80), 25.0, DebugRendererColors::CYAN, 80);
-            
-            m_dbg.Text(pos + Vector(0, 0, 120), "Hello Debug!");
-        }
+        debug::Line(...)
     }
 }
 ```
